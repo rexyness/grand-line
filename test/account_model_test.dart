@@ -19,11 +19,12 @@ void main() {
   });
 
   group('isValidOtpCode', () {
-    test('exactly six digits', () {
+    test('six to eight digits', () {
       expect(isValidOtpCode('123456'), isTrue);
       expect(isValidOtpCode(' 123456 '), isTrue);
+      expect(isValidOtpCode('13543085'), isTrue);
       expect(isValidOtpCode('12345'), isFalse);
-      expect(isValidOtpCode('1234567'), isFalse);
+      expect(isValidOtpCode('123456789'), isFalse);
       expect(isValidOtpCode('12345a'), isFalse);
     });
   });

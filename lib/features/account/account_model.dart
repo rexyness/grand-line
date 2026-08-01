@@ -14,8 +14,11 @@ String? normalizeEmail(String input) {
   return email;
 }
 
-/// The 6-digit one-time code (spec §4.6).
-bool isValidOtpCode(String input) => RegExp(r'^\d{6}$').hasMatch(input.trim());
+/// The one-time code (spec §4.6: 6 digits, matching the backend's OTP-length
+/// setting — but accept up to 8 so a server-side config change degrades to a
+/// wrong-code error instead of hard-blocking entry).
+bool isValidOtpCode(String input) =>
+    RegExp(r'^\d{6,8}$').hasMatch(input.trim());
 
 /// "Last sync" as the account card shows it.
 String formatLastSync(DateTime? lastSync, DateTime now) {

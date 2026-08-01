@@ -126,7 +126,7 @@ void main() {
     await tester.enterText(find.byType(TextField), '12');
     await tester.tap(find.text('Verify'));
     await tester.pump();
-    expect(find.textContaining('6-digit code from the email'), findsOneWidget);
+    expect(find.textContaining('sign-in code from the email'), findsOneWidget);
     expect(backend.verifiedCode, isNull);
 
     await teardownTree(tester);

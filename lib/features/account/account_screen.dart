@@ -157,7 +157,7 @@ class _SignInFlowState extends ConsumerState<_SignInFlow> {
   Future<void> _verify() async {
     final code = _codeController.text.trim();
     if (!isValidOtpCode(code)) {
-      setState(() => _error = 'Enter the 6-digit code from the email.');
+      setState(() => _error = 'Enter the sign-in code from the email.');
       return;
     }
     setState(() {
@@ -227,7 +227,7 @@ class _SignInFlowState extends ConsumerState<_SignInFlow> {
             autofocus: true,
             keyboardType: TextInputType.number,
             autofillHints: const [AutofillHints.oneTimeCode],
-            maxLength: 6,
+            maxLength: 8,
             decoration: const InputDecoration(
               labelText: '6-digit code',
               border: OutlineInputBorder(),

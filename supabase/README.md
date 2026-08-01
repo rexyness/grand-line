@@ -15,37 +15,31 @@ behind owner-only RLS with a most-recent-activity-wins RPC.
   `pg_cron`/`pg_net` enabled; jobs `releases-diff` (every 12 h) and
   `catalog-full-sync` (daily 04:30 UTC) active. First full seed: 37 arcs,
   477 episodes, 2227 stream + 488 download sources, 358 releases.
-- Still pending (one manual dashboard step, see below): the auth email
-  templates must be edited to contain the 6-digit `{{ .Token }}` — the
-  defaults send only a confirmation *link*, which the app's OTP flow
-  (implementation step 10) can't use.
+- Email OTP configured 2026-08-02 (end-to-end verified: sign-in, history
+  upload, sync):
+  - Custom SMTP via **Resend** (Authentication → Emails → SMTP Settings):
+    host `smtp.resend.com`, port 465, username `resend`, password = a
+    Resend API key, sender `grand-line <onboarding@resend.dev>`. The
+    dashboard only allows editing email templates *after* custom SMTP is
+    configured — Supabase's built-in mailer always sends the defaults,
+    which contain only a sign-in link, no code.
+  - **Confirm sign up** and **Magic link or OTP** templates rewritten to
+    carry the code (both matter — first-time email uses the former):
+    subject "Your grand-line sign-in code", body
+
+    ```html
+    <h2>Your grand-line sign-in code</h2>
+    <p>Enter this code in the app to finish signing in: <strong>{{ .Token }}</strong></p>
+    <p>It expires in one hour. If you did not request it, you can ignore this email.</p>
+    ```
+
+  - Email OTP length set to **6** (project default was 8; the app accepts
+    6–8 defensively).
+  - ⚠ Resend sandbox: until a domain is verified at resend.com/domains,
+    emails deliver **only to the Resend account owner's address** and the
+    sender must stay `onboarding@resend.dev`. Verify a domain and switch
+    the sender before letting real users sign in (pre-launch checklist).
 - Run the app against it: `flutter run --dart-define-from-file=dart_defines.json`
-
-### Email-OTP template (manual — blocked on custom SMTP)
-
-Checked 2026-08-01: the dashboard (Authentication → Emails → Templates)
-only allows editing email templates **after custom SMTP is configured**;
-until then Supabase's built-in mailer sends the default templates, and the
-default "Magic link or OTP" email contains only a sign-in *link* — no
-6-digit code — so the app's OTP flow can't complete. To unblock:
-
-1. Create an account with an SMTP provider (e.g. Resend or Brevo free
-   tier) and set it under Authentication → Emails → SMTP Settings.
-2. Then edit the **Confirm sign up** and **Magic link or OTP** templates
-   so the body includes the code, e.g.
-
-   ```html
-   <h2>Your grand-line sign-in code</h2>
-   <p>Enter this code in the app: <strong>{{ .Token }}</strong></p>
-   <p>It expires in one hour. If you didn't request it, ignore this email.</p>
-   ```
-
-   (Both templates matter: Supabase uses *Confirm sign up* for a
-   first-time email and *Magic link or OTP* afterwards.)
-
-Everything else about the flow already works — the server generates and
-verifies the token regardless of what the email shows, and the client's
-`verifyOTP` path is wired and tested.
 
 ## One-time setup (from scratch)
 
