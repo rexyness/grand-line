@@ -22,7 +22,7 @@ jobs:
       - run: flutter pub get
       - name: Verify codegen is committed and current
         run: |
-          dart run build_runner build --delete-conflicting-outputs
+          dart run build_runner build --force-jit --delete-conflicting-outputs
           git diff --exit-code
       - run: flutter analyze
       - run: flutter test
