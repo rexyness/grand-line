@@ -21,18 +21,10 @@ class ArcBackdrop extends ConsumerWidget {
     if (u == null) {
       child = placeholder();
     } else {
-      final cache = ref.watch(backdropCacheProvider);
-      child = switch (cache) {
-        AsyncData(:final value) => FutureBuilder(
-            future: value.fileFor(u),
-            builder: (context, snapshot) {
-              final file = snapshot.data;
-              if (file == null) return placeholder();
-              return Image.file(file, fit: BoxFit.cover);
-            },
-          ),
-        _ => placeholder(),
-      };
+      final file = ref.watch(backdropFileProvider(u)).value;
+      child = file == null
+          ? placeholder()
+          : Image.file(file, fit: BoxFit.cover, gaplessPlayback: true);
     }
 
     if (darken > 0) {

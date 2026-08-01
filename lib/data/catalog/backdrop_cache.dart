@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -83,3 +84,18 @@ Future<BackdropCache> backdropCache(Ref ref) async {
   final support = await getApplicationSupportDirectory();
   return BackdropCache(Directory('${support.path}/backdrops'));
 }
+
+/// Memoized backdrop lookup per URL. Widgets must watch this instead of
+/// calling [BackdropCache.fileFor] through a FutureBuilder: a resolved file
+/// stays AsyncData across rebuilds, so the image renders synchronously and
+/// the placeholder never flashes back in. A successful lookup is kept alive;
+/// a failed one (offline) is allowed to dispose so it retries naturally the
+/// next time the widget tree listens. Declared manually — no codegen needed
+/// for a plain family.
+final backdropFileProvider =
+    FutureProvider.autoDispose.family<File?, String>((ref, url) async {
+  final cache = await ref.watch(backdropCacheProvider.future);
+  final file = await cache.fileFor(url);
+  if (file != null) ref.keepAlive();
+  return file;
+});

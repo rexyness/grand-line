@@ -31,6 +31,9 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+  // Captured in initState: ref is unsafe to use once disposal has begun, and
+  // dispose() needs the database for the final progress checkpoint.
+  late final AppDatabase _db;
   PlaybackController? _controller;
   StreamSubscription<PlaybackSnapshot>? _subscription;
   PlaybackSnapshot _snapshot = const PlaybackSnapshot();
@@ -47,14 +50,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+    _db = ref.read(appDatabaseProvider);
     _start();
   }
 
   Future<void> _start() async {
-    final db = ref.read(appDatabaseProvider);
-    final sources = await db.catalogDao
+    final sources = await _db.catalogDao
         .sourcesForEpisode(widget.arc.arc.part, _episode.number);
-    final downloads = await db.downloadsDao.watchAll().first;
+    final downloads = await _db.downloadsDao.watchAll().first;
     final download = downloads
         .where((d) =>
             d.arcPart == widget.arc.arc.part && d.number == _episode.number)
@@ -96,8 +99,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _checkpoint() async {
     final snapshot = _controller?.current;
     if (snapshot == null || snapshot.duration <= Duration.zero) return;
-    final db = ref.read(appDatabaseProvider);
-    await db.progressDao.applyLww(
+    await _db.progressDao.applyLww(
       arcPart: widget.arc.arc.part,
       number: _episode.number,
       positionMs: snapshot.position.inMilliseconds,
@@ -166,14 +168,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void dispose() {
     _hideTimer?.cancel();
     _checkpointTimer?.cancel();
-    // Capture everything now — ref is unusable once disposal completes.
     final snapshot = _controller?.current;
-    final db = ref.read(appDatabaseProvider);
     final arcPart = widget.arc.arc.part;
     final number = _episode.number;
     final watched = _watchedMarked || _episode.watched;
     if (snapshot != null && snapshot.duration > Duration.zero) {
-      unawaited(db.progressDao.applyLww(
+      unawaited(_db.progressDao.applyLww(
         arcPart: arcPart,
         number: number,
         positionMs: snapshot.position.inMilliseconds,
