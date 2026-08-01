@@ -225,6 +225,13 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
   Stream<List<Arc>> watchArcs() =>
       (select(arcs)..orderBy([(a) => OrderingTerm.asc(a.part)])).watch();
 
+  Stream<List<Episode>> watchAllEpisodes() => (select(episodes)
+        ..orderBy([
+          (e) => OrderingTerm.asc(e.arcPart),
+          (e) => OrderingTerm.asc(e.number),
+        ]))
+      .watch();
+
   Stream<List<Episode>> watchEpisodesOfArc(int arcPart) => (select(episodes)
         ..where((e) => e.arcPart.equals(arcPart))
         ..orderBy([(e) => OrderingTerm.asc(e.number)]))
