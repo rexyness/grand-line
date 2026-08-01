@@ -15,9 +15,37 @@ behind owner-only RLS with a most-recent-activity-wins RPC.
   `pg_cron`/`pg_net` enabled; jobs `releases-diff` (every 12 h) and
   `catalog-full-sync` (daily 04:30 UTC) active. First full seed: 37 arcs,
   477 episodes, 2227 stream + 488 download sources, 358 releases.
-- Still pending (implementation step 10): auth email-OTP configuration
-  (6-digit token template).
+- Still pending (one manual dashboard step, see below): the auth email
+  templates must be edited to contain the 6-digit `{{ .Token }}` — the
+  defaults send only a confirmation *link*, which the app's OTP flow
+  (implementation step 10) can't use.
 - Run the app against it: `flutter run --dart-define-from-file=dart_defines.json`
+
+### Email-OTP template (manual — blocked on custom SMTP)
+
+Checked 2026-08-01: the dashboard (Authentication → Emails → Templates)
+only allows editing email templates **after custom SMTP is configured**;
+until then Supabase's built-in mailer sends the default templates, and the
+default "Magic link or OTP" email contains only a sign-in *link* — no
+6-digit code — so the app's OTP flow can't complete. To unblock:
+
+1. Create an account with an SMTP provider (e.g. Resend or Brevo free
+   tier) and set it under Authentication → Emails → SMTP Settings.
+2. Then edit the **Confirm sign up** and **Magic link or OTP** templates
+   so the body includes the code, e.g.
+
+   ```html
+   <h2>Your grand-line sign-in code</h2>
+   <p>Enter this code in the app: <strong>{{ .Token }}</strong></p>
+   <p>It expires in one hour. If you didn't request it, ignore this email.</p>
+   ```
+
+   (Both templates matter: Supabase uses *Confirm sign up* for a
+   first-time email and *Magic link or OTP* afterwards.)
+
+Everything else about the flow already works — the server generates and
+verifies the token regardless of what the email shows, and the client's
+`verifyOTP` path is wired and tested.
 
 ## One-time setup (from scratch)
 
@@ -71,8 +99,11 @@ is belt-and-braces for the pre-launch window once Actions is unblocked.
 ## Client wiring
 
 The app needs only the project URL and anon key (safe to ship publicly —
-RLS enforces everything; spec §3). They land in the app as build-time config
-in a later implementation step.
+RLS enforces everything; spec §3), passed as build-time defines from
+[`dart_defines.json`](../dart_defines.json). Catalog reads go through
+PostgREST anonymously; watch progress syncs through the `apply_progress*`
+RPCs once the user signs in with an email OTP (`lib/data/sync/`). Without
+the defines the app runs fully local-only.
 
 ## Development
 

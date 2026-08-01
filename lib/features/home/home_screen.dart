@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/downloads/download_service.dart';
+import '../../data/sync/sync_service.dart';
+import '../account/account_screen.dart';
 import '../downloads/downloads_model.dart';
 import '../downloads/downloads_screen.dart';
 import '../player/player_screen.dart';
@@ -20,6 +22,8 @@ class HomeScreen extends ConsumerWidget {
     ref.watch(launchRefreshProvider);
     // Startup reconciliation of the download registry (spec §7.4).
     ref.watch(downloadsInitProvider);
+    // Background sync triggers: sign-in sync + debounced push (spec §8).
+    ref.watch(syncInitProvider);
     final views = ref.watch(arcViewsProvider);
 
     return Scaffold(
@@ -137,6 +141,14 @@ class _TopChrome extends StatelessWidget {
             tooltip: 'Downloads',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => const DownloadsScreen(),
+            )),
+          ),
+          IconButton(
+            color: Colors.white,
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Account & sync',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const AccountScreen(),
             )),
           ),
           MenuAnchor(

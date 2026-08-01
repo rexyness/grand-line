@@ -1,7 +1,9 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Provider;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../catalog/catalog_backend.dart';
+import 'sync_backend.dart';
 
 part 'supabase_backend.g.dart';
 
@@ -10,6 +12,17 @@ part 'supabase_backend.g.dart';
 /// key is safe to embed publicly — RLS enforces everything (spec §3).
 const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+
+bool _initialized = false;
+
+/// Call once from main before runApp. Sets up the shared client with
+/// persistent auth sessions (spec §8.2: sessions persist per device); a
+/// no-op in local-only builds without backend defines.
+Future<void> initializeSupabase() async {
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) return;
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
+  _initialized = true;
+}
 
 /// [CatalogBackend] over Supabase PostgREST — plain anon reads, no bespoke
 /// API (spec §3.3).
@@ -87,8 +100,87 @@ class SupabaseCatalogBackend implements CatalogBackend {
   }
 }
 
+/// [SyncBackend] over Supabase auth + the progress RPCs (spec §3.3/§8).
+class SupabaseSyncBackend implements SyncBackend {
+  SupabaseSyncBackend(this._client);
+
+  final SupabaseClient _client;
+
+  @override
+  String? get userEmail => _client.auth.currentUser?.email;
+
+  @override
+  Stream<String?> get userEmailStream =>
+      // onAuthStateChange replays the current session to new listeners;
+      // distinct() drops the no-op tokenRefreshed emissions.
+      _client.auth.onAuthStateChange
+          .map((state) => state.session?.user.email)
+          .distinct();
+
+  @override
+  Future<void> sendOtp(String email) => _wrapAuth(
+      () => _client.auth.signInWithOtp(email: email, shouldCreateUser: true));
+
+  @override
+  Future<void> verifyOtp({required String email, required String code}) =>
+      _wrapAuth(() => _client.auth
+          .verifyOTP(type: OtpType.email, email: email, token: code));
+
+  @override
+  Future<void> signOut() => _wrapAuth(() => _client.auth.signOut());
+
+  @override
+  Future<void> pushProgress(List<RemoteProgress> rows) async {
+    if (rows.isEmpty) return;
+    await _client.rpc<void>('apply_progress_batch', params: {
+      'p_rows': [
+        for (final r in rows)
+          {
+            'arc_part': r.arcPart,
+            'number': r.number,
+            'position_ms': r.positionMs,
+            'watched': r.watched,
+            'updated_at': r.updatedAt.toUtc().toIso8601String(),
+          },
+      ],
+    });
+  }
+
+  @override
+  Future<List<RemoteProgress>> pullProgress() async {
+    final rows = await _client.from('progress').select();
+    return [
+      for (final r in rows.cast<Map<String, dynamic>>())
+        RemoteProgress(
+          arcPart: r['arc_part'] as int,
+          number: r['number'] as int,
+          positionMs: (r['position_ms'] as num).toInt(),
+          watched: r['watched'] as bool,
+          updatedAt: DateTime.parse(r['updated_at'] as String),
+        ),
+    ];
+  }
+
+  /// Rethrows auth failures with their human-readable message so screens
+  /// never see the engine package's exception types.
+  Future<T> _wrapAuth<T>(Future<T> Function() action) async {
+    try {
+      return await action();
+    } on AuthException catch (e) {
+      throw SyncAuthException(e.message);
+    }
+  }
+}
+
 @Riverpod(keepAlive: true)
 CatalogBackend? catalogBackend(Ref ref) {
-  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) return null;
-  return SupabaseCatalogBackend(SupabaseClient(supabaseUrl, supabaseAnonKey));
+  if (!_initialized) return null;
+  return SupabaseCatalogBackend(Supabase.instance.client);
 }
+
+// Manual provider — codegen stays out while build_runner is broken on this
+// machine (see pubspec).
+final syncBackendProvider = Provider<SyncBackend?>((ref) {
+  if (!_initialized) return null;
+  return SupabaseSyncBackend(Supabase.instance.client);
+});

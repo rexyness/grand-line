@@ -131,6 +131,11 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
       into(syncState).insertOnConflictUpdate(
           SyncStateCompanion.insert(key: key, value: value));
 
+  Stream<String?> watchSyncValue(String key) =>
+      (select(syncState)..where((s) => s.key.equals(key)))
+          .watchSingleOrNull()
+          .map((row) => row?.value);
+
   Future<int> countArcs() async {
     final row = await (selectOnly(arcs)..addColumns([arcs.part.count()])).getSingle();
     return row.read(arcs.part.count()) ?? 0;
@@ -256,20 +261,32 @@ class ProgressDao extends DatabaseAccessor<AppDatabase> with _$ProgressDaoMixin 
     required bool watched,
     required int updatedAtMs,
   }) async {
-    await customStatement(
+    // customInsert (not customStatement) so the write notifies the table's
+    // watch streams — the home progress chips and the sync push trigger
+    // both hang off watchAll().
+    await customInsert(
       'INSERT INTO progress_entries (arc_part, number, position_ms, watched, updated_at_ms) '
       'VALUES (?, ?, ?, ?, ?) '
       'ON CONFLICT(arc_part, number) DO UPDATE SET '
       'position_ms = excluded.position_ms, watched = excluded.watched, '
       'updated_at_ms = excluded.updated_at_ms '
       'WHERE excluded.updated_at_ms > progress_entries.updated_at_ms',
-      [arcPart, number, positionMs, watched ? 1 : 0, updatedAtMs],
+      variables: [
+        Variable(arcPart),
+        Variable(number),
+        Variable(positionMs),
+        Variable(watched ? 1 : 0),
+        Variable(updatedAtMs),
+      ],
+      updates: {progressEntries},
     );
   }
 
   Future<ProgressEntry?> get(int arcPart, int number) => (select(progressEntries)
         ..where((p) => p.arcPart.equals(arcPart) & p.number.equals(number)))
       .getSingleOrNull();
+
+  Future<List<ProgressEntry>> all() => select(progressEntries).get();
 
   Stream<List<ProgressEntry>> watchAll() => select(progressEntries).watch();
 }

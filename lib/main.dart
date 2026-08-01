@@ -5,10 +5,12 @@ import 'package:window_manager/window_manager.dart';
 import 'app/app.dart';
 import 'data/platform/platform_capabilities.dart';
 import 'data/playback/media_kit_controller.dart';
+import 'data/sync/supabase_backend.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   initializePlaybackEngine();
+  await initializeSupabase();
 
   final capabilities = PlatformCapabilities.detect();
   if (capabilities.hasWindowManagement) {
