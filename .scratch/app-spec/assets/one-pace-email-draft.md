@@ -40,7 +40,7 @@ polling, the artwork, the name — doesn't sit right with you, tell me and I'll
 change it or take it down. This exists to make watching One Pace nicer, not to
 cause you problems.
 
-Repo (goes public shortly): <link when public>
+Repo (currently private; goes public shortly): https://github.com/rexyness/grand-line
 
 Thanks for everything you do,
 <your name>
@@ -49,7 +49,7 @@ Thanks for everything you do,
 
 ## Notes for the sender (not part of the email)
 
-- Fill in the repo link and your name/sign-off before sending.
+- Fill in your name/sign-off before sending (repo link filled in 2026-08-01).
 - The FAQ also points at their Discord — if no email reply after ~2 weeks, a
   polite Discord ping referencing the email is the follow-up path.
 - On reply, record the outcome in the ticket: UA blessing (y/n), backdrop
