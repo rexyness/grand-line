@@ -197,12 +197,15 @@ research: [playback stack](../../docs/research/playback-stack.md)
   asset on Android. Track switching via `setSubtitleTrack`/`setAudioTrack`.
 - **Isolation:** all playback sits behind an app-owned `PlaybackController` in
   `data/playback/`; no media_kit types leak out. A fallback swap stays contained to one module.
-- **Implementation step 0 — Android ASS spike (mandatory, first):** play a current One Pace
-  MKV on Android with `libass: true` + bundled font, streamed and local, verifying styled subs
-  render and track switching works. **Switch trigger (written):** if styled subs don't render
-  correctly or track switching fails and can't be worked around, switch to
-  **video_player + fvp** (closed-source libmdk core; track switching via fvp's backend API).
-  A failed spike reopens the playback decision and the subtitle UI wiring — accepted risk.
+- **Implementation step 0 — Android ASS spike: ✅ PASSED (2026-08-01, real device).**
+  Styled ASS renders and track switching works on Android; media_kit stays and the
+  video_player+fvp fallback is not needed. Findings the shim must carry (details in
+  `spike/ass_spike/RESULT.md`, branch `spike/android-ass`, and
+  [ticket 08's addendum](issues/08-playback-stack-decision.md)): set
+  `ao=audiotrack,opensles` before open (media_kit's hardcoded `opensles` yields **no
+  audio** on some devices); supply `libassAndroidFont`+`Name`; hevc hwdec falls back to
+  software (fine at 1080p, revisit); Android emulators can't create mpv's EGL context —
+  player testing needs real hardware.
 - **Caveats to carry:** pin media_kit's version (community-carried maintenance, bursty
   releases); accept the binary-size cost (heaviest option); follow media_kit docs for
   iOS/desktop packaging.
