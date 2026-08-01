@@ -1,0 +1,5 @@
+project_id = "grand-line"
+
+# Auth guarded by x-cron-secret instead (set CRON_SECRET as a function secret).
+[functions.catalog-sync]
+verify_jwt = false
