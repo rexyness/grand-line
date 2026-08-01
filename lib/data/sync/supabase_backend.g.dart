@@ -49,4 +49,4 @@ final class CatalogBackendProvider
   }
 }
 
-String _$catalogBackendHash() => r'93e483c301dd4074725a58e7b5c28c120aa6eb91';
+String _$catalogBackendHash() => r'2f4802b2026ef4cd898a1257ae760fc02c29bac6';

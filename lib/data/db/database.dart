@@ -94,6 +94,25 @@ class DownloadEntries extends Table {
   Set<Column> get primaryKey => {arcPart, number};
 }
 
+/// Local mirror of the backend `releases` feed (spec §9). `seenAtMs` is the
+/// per-item seen marker driving the bell badge and arc-strip dots — null
+/// means unseen. Seen state is per-device and never synced (spec §9.5).
+class ReleaseEntries extends Table {
+  TextColumn get infohash => text()();
+  TextColumn get title => text()();
+  IntColumn get pubDateMs => integer().nullable()();
+  TextColumn get variant => text().nullable()();
+  BoolColumn get outdated => boolean().withDefault(const Constant(false))();
+  TextColumn get fileName => text().nullable()();
+  TextColumn get crc32 => text().nullable()();
+  TextColumn get magnet => text().nullable()();
+  IntColumn get firstSeenAtMs => integer()();
+  IntColumn get seenAtMs => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {infohash};
+}
+
 /// Small key-value store for sync cursors/watermarks.
 class SyncState extends Table {
   TextColumn get key => text()();
@@ -104,8 +123,16 @@ class SyncState extends Table {
 }
 
 @DriftDatabase(
-  tables: [Arcs, Episodes, Sources, ProgressEntries, DownloadEntries, SyncState],
-  daos: [CatalogDao, ProgressDao, DownloadsDao],
+  tables: [
+    Arcs,
+    Episodes,
+    Sources,
+    ProgressEntries,
+    DownloadEntries,
+    ReleaseEntries,
+    SyncState,
+  ],
+  daos: [CatalogDao, ProgressDao, DownloadsDao, ReleasesDao],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
@@ -114,7 +141,14 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open() : super(driftDatabase(name: 'grand_line'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          if (from < 2) await m.createTable(releaseEntries);
+        },
+      );
 }
 
 @DriftAccessor(tables: [Arcs, Episodes, Sources, SyncState])
@@ -245,6 +279,8 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
   Future<List<Source>> sourcesForEpisode(int arcPart, int number) => (select(sources)
         ..where((s) => s.arcPart.equals(arcPart) & s.number.equals(number)))
       .get();
+
+  Stream<List<Source>> watchAllSources() => select(sources).watch();
 }
 
 @DriftAccessor(tables: [ProgressEntries])
@@ -350,6 +386,78 @@ class DownloadsDao extends DatabaseAccessor<AppDatabase> with _$DownloadsDaoMixi
       .go();
 
   Stream<List<DownloadEntry>> watchAll() => select(downloadEntries).watch();
+}
+
+@DriftAccessor(tables: [ReleaseEntries])
+class ReleasesDao extends DatabaseAccessor<AppDatabase> with _$ReleasesDaoMixin {
+  ReleasesDao(super.db);
+
+  /// Upsert from a backend fetch. On conflict the feed fields refresh but
+  /// `seenAtMs` is left alone — seen state is local and survives refetches;
+  /// [seenAtMs] only lands when the row is first inserted.
+  Future<void> upsertFetched({
+    required String infohash,
+    required String title,
+    int? pubDateMs,
+    String? variant,
+    bool outdated = false,
+    String? fileName,
+    String? crc32,
+    String? magnet,
+    required int firstSeenAtMs,
+    int? seenAtMs,
+  }) {
+    return into(releaseEntries).insert(
+      ReleaseEntriesCompanion.insert(
+        infohash: infohash,
+        title: title,
+        pubDateMs: Value(pubDateMs),
+        variant: Value(variant),
+        outdated: Value(outdated),
+        fileName: Value(fileName),
+        crc32: Value(crc32),
+        magnet: Value(magnet),
+        firstSeenAtMs: firstSeenAtMs,
+        seenAtMs: Value(seenAtMs),
+      ),
+      onConflict: DoUpdate(
+        (old) => ReleaseEntriesCompanion(
+          title: Value(title),
+          pubDateMs: Value(pubDateMs),
+          variant: Value(variant),
+          outdated: Value(outdated),
+          fileName: Value(fileName),
+          crc32: Value(crc32),
+          magnet: Value(magnet),
+        ),
+        target: [releaseEntries.infohash],
+      ),
+    );
+  }
+
+  Future<List<ReleaseEntry>> all() => select(releaseEntries).get();
+
+  /// Newest first, by publication date with first-seen as tiebreak/fallback.
+  Stream<List<ReleaseEntry>> watchAll() => (select(releaseEntries)
+        ..orderBy([
+          (r) => OrderingTerm.desc(
+              coalesce([r.pubDateMs, r.firstSeenAtMs])),
+          (r) => OrderingTerm.desc(r.firstSeenAtMs),
+        ]))
+      .watch();
+
+  Future<void> markAllSeen(int nowMs) =>
+      (update(releaseEntries)..where((r) => r.seenAtMs.isNull()))
+          .write(ReleaseEntriesCompanion(seenAtMs: Value(nowMs)));
+
+  /// CRC32s are compared uppercased — the RSS and the catalog snapshot don't
+  /// agree on casing.
+  Future<void> markSeenByCrc32s(Set<String> crc32s, int nowMs) {
+    final upper = [for (final c in crc32s) c.toUpperCase()];
+    return (update(releaseEntries)
+          ..where((r) => r.seenAtMs.isNull() & r.crc32.upper().isIn(upper)))
+        .write(ReleaseEntriesCompanion(seenAtMs: Value(nowMs)));
+  }
 }
 
 @Riverpod(keepAlive: true)

@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/downloads/download_service.dart';
+import '../../data/releases/release_service.dart';
 import '../../data/sync/sync_service.dart';
 import '../account/account_screen.dart';
 import '../downloads/downloads_model.dart';
 import '../downloads/downloads_screen.dart';
 import '../player/player_screen.dart';
+import '../releases/releases_providers.dart';
+import '../releases/releases_screen.dart';
 import 'arc_backdrop.dart';
 import 'home_model.dart';
 import 'home_providers.dart';
@@ -24,6 +27,8 @@ class HomeScreen extends ConsumerWidget {
     ref.watch(downloadsInitProvider);
     // Background sync triggers: sign-in sync + debounced push (spec §8).
     ref.watch(syncInitProvider);
+    // Release-feed checks: launch, resume, desktop timer (spec §9.2).
+    ref.watch(releasesInitProvider);
     final views = ref.watch(arcViewsProvider);
 
     return Scaffold(
@@ -105,13 +110,14 @@ class _HomeBody extends ConsumerWidget {
   }
 }
 
-class _TopChrome extends StatelessWidget {
+class _TopChrome extends ConsumerWidget {
   const _TopChrome({required this.onRefresh});
 
   final VoidCallback onRefresh;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unseen = ref.watch(unseenReleaseCountProvider);
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       child: Row(
@@ -127,13 +133,25 @@ class _TopChrome extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          // Search, downloads, and the release bell arrive in later steps;
-          // the slots exist so the chrome doesn't reflow.
+          // Search arrives in a later step; the slot exists so the chrome
+          // doesn't reflow.
           IconButton(
             color: Colors.white,
             icon: const Icon(Icons.search),
             tooltip: 'Search (coming soon)',
             onPressed: null,
+          ),
+          IconButton(
+            color: Colors.white,
+            icon: Badge(
+              isLabelVisible: unseen > 0,
+              label: Text('$unseen'),
+              child: const Icon(Icons.notifications_none),
+            ),
+            tooltip: 'New releases',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const ReleasesScreen(),
+            )),
           ),
           IconButton(
             color: Colors.white,
@@ -329,7 +347,7 @@ class _EpisodeChips extends StatelessWidget {
   }
 }
 
-class _ArcStrip extends StatelessWidget {
+class _ArcStrip extends ConsumerWidget {
   const _ArcStrip({
     required this.views,
     required this.focusedPart,
@@ -343,7 +361,8 @@ class _ArcStrip extends StatelessWidget {
   final ValueChanged<int> onFocus;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unseenParts = ref.watch(unseenArcPartsProvider);
     return SizedBox(
       height: wide ? 120 : 90,
       child: ListView.builder(
@@ -375,6 +394,22 @@ class _ArcStrip extends StatelessWidget {
                       url: view.arc.backdropUrl,
                       darken: focused ? 0 : 0.5,
                     ),
+                    // Unseen-release dot (spec §9.3); clears when the
+                    // release list is opened or the episode played.
+                    if (unseenParts.contains(view.arc.part))
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Theme.of(context).colorScheme.primary,
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                        ),
+                      ),
                     Align(
                       alignment: Alignment.bottomLeft,
                       child: Padding(

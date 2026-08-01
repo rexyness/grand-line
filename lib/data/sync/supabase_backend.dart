@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../catalog/catalog_backend.dart';
+import '../releases/releases_backend.dart';
 import 'sync_backend.dart';
 
 part 'supabase_backend.g.dart';
@@ -100,6 +101,35 @@ class SupabaseCatalogBackend implements CatalogBackend {
   }
 }
 
+/// [ReleasesBackend] over Supabase PostgREST — a plain anon full read of the
+/// world-readable `releases` table (spec §9.2).
+class SupabaseReleasesBackend implements ReleasesBackend {
+  SupabaseReleasesBackend(this._client);
+
+  final SupabaseClient _client;
+
+  @override
+  Future<List<RemoteRelease>> fetchAll() async {
+    final rows = await _client.from('releases').select();
+    return [
+      for (final r in rows.cast<Map<String, dynamic>>())
+        RemoteRelease(
+          infohash: r['infohash'] as String,
+          title: r['title'] as String,
+          pubDate: r['pub_date'] == null
+              ? null
+              : DateTime.parse(r['pub_date'] as String),
+          variant: r['variant'] as String?,
+          outdated: r['outdated'] as bool? ?? false,
+          fileName: r['filename'] as String?,
+          crc32: r['crc32'] as String?,
+          magnet: r['magnet'] as String?,
+          firstSeenAt: DateTime.parse(r['first_seen_at'] as String),
+        ),
+    ];
+  }
+}
+
 /// [SyncBackend] over Supabase auth + the progress RPCs (spec §3.3/§8).
 class SupabaseSyncBackend implements SyncBackend {
   SupabaseSyncBackend(this._client);
@@ -178,9 +208,16 @@ CatalogBackend? catalogBackend(Ref ref) {
   return SupabaseCatalogBackend(Supabase.instance.client);
 }
 
-// Manual provider — codegen stays out while build_runner is broken on this
-// machine (see pubspec).
+// Manual providers — build_runner needs `--force-jit` on this machine (the
+// AOT build script trips over native build hooks); regenerating works, but
+// new providers stay manual for uniformity with the stream providers that
+// riverpod_generator can't express (see home_providers.dart).
 final syncBackendProvider = Provider<SyncBackend?>((ref) {
   if (!_initialized) return null;
   return SupabaseSyncBackend(Supabase.instance.client);
+});
+
+final releasesBackendProvider = Provider<ReleasesBackend?>((ref) {
+  if (!_initialized) return null;
+  return SupabaseReleasesBackend(Supabase.instance.client);
 });

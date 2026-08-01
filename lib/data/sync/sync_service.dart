@@ -156,8 +156,8 @@ class SyncService {
   }
 }
 
-// Manual providers — codegen stays out of new files while build_runner is
-// broken on this machine (build-hooks incompatibility).
+// Manual providers — see the note in supabase_backend.dart (build_runner
+// works with `--force-jit`; new providers stay manual for uniformity).
 
 final syncServiceProvider = Provider<SyncService>((ref) {
   final service =

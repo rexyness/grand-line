@@ -2501,6 +2501,625 @@ class DownloadEntriesCompanion extends UpdateCompanion<DownloadEntry> {
   }
 }
 
+class $ReleaseEntriesTable extends ReleaseEntries
+    with TableInfo<$ReleaseEntriesTable, ReleaseEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReleaseEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _infohashMeta = const VerificationMeta(
+    'infohash',
+  );
+  @override
+  late final GeneratedColumn<String> infohash = GeneratedColumn<String>(
+    'infohash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pubDateMsMeta = const VerificationMeta(
+    'pubDateMs',
+  );
+  @override
+  late final GeneratedColumn<int> pubDateMs = GeneratedColumn<int>(
+    'pub_date_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _variantMeta = const VerificationMeta(
+    'variant',
+  );
+  @override
+  late final GeneratedColumn<String> variant = GeneratedColumn<String>(
+    'variant',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _outdatedMeta = const VerificationMeta(
+    'outdated',
+  );
+  @override
+  late final GeneratedColumn<bool> outdated = GeneratedColumn<bool>(
+    'outdated',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("outdated" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _fileNameMeta = const VerificationMeta(
+    'fileName',
+  );
+  @override
+  late final GeneratedColumn<String> fileName = GeneratedColumn<String>(
+    'file_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _crc32Meta = const VerificationMeta('crc32');
+  @override
+  late final GeneratedColumn<String> crc32 = GeneratedColumn<String>(
+    'crc32',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _magnetMeta = const VerificationMeta('magnet');
+  @override
+  late final GeneratedColumn<String> magnet = GeneratedColumn<String>(
+    'magnet',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _firstSeenAtMsMeta = const VerificationMeta(
+    'firstSeenAtMs',
+  );
+  @override
+  late final GeneratedColumn<int> firstSeenAtMs = GeneratedColumn<int>(
+    'first_seen_at_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _seenAtMsMeta = const VerificationMeta(
+    'seenAtMs',
+  );
+  @override
+  late final GeneratedColumn<int> seenAtMs = GeneratedColumn<int>(
+    'seen_at_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    infohash,
+    title,
+    pubDateMs,
+    variant,
+    outdated,
+    fileName,
+    crc32,
+    magnet,
+    firstSeenAtMs,
+    seenAtMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'release_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReleaseEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('infohash')) {
+      context.handle(
+        _infohashMeta,
+        infohash.isAcceptableOrUnknown(data['infohash']!, _infohashMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_infohashMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('pub_date_ms')) {
+      context.handle(
+        _pubDateMsMeta,
+        pubDateMs.isAcceptableOrUnknown(data['pub_date_ms']!, _pubDateMsMeta),
+      );
+    }
+    if (data.containsKey('variant')) {
+      context.handle(
+        _variantMeta,
+        variant.isAcceptableOrUnknown(data['variant']!, _variantMeta),
+      );
+    }
+    if (data.containsKey('outdated')) {
+      context.handle(
+        _outdatedMeta,
+        outdated.isAcceptableOrUnknown(data['outdated']!, _outdatedMeta),
+      );
+    }
+    if (data.containsKey('file_name')) {
+      context.handle(
+        _fileNameMeta,
+        fileName.isAcceptableOrUnknown(data['file_name']!, _fileNameMeta),
+      );
+    }
+    if (data.containsKey('crc32')) {
+      context.handle(
+        _crc32Meta,
+        crc32.isAcceptableOrUnknown(data['crc32']!, _crc32Meta),
+      );
+    }
+    if (data.containsKey('magnet')) {
+      context.handle(
+        _magnetMeta,
+        magnet.isAcceptableOrUnknown(data['magnet']!, _magnetMeta),
+      );
+    }
+    if (data.containsKey('first_seen_at_ms')) {
+      context.handle(
+        _firstSeenAtMsMeta,
+        firstSeenAtMs.isAcceptableOrUnknown(
+          data['first_seen_at_ms']!,
+          _firstSeenAtMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_firstSeenAtMsMeta);
+    }
+    if (data.containsKey('seen_at_ms')) {
+      context.handle(
+        _seenAtMsMeta,
+        seenAtMs.isAcceptableOrUnknown(data['seen_at_ms']!, _seenAtMsMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {infohash};
+  @override
+  ReleaseEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReleaseEntry(
+      infohash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}infohash'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      pubDateMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pub_date_ms'],
+      ),
+      variant: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}variant'],
+      ),
+      outdated: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}outdated'],
+      )!,
+      fileName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_name'],
+      ),
+      crc32: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}crc32'],
+      ),
+      magnet: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}magnet'],
+      ),
+      firstSeenAtMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}first_seen_at_ms'],
+      )!,
+      seenAtMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seen_at_ms'],
+      ),
+    );
+  }
+
+  @override
+  $ReleaseEntriesTable createAlias(String alias) {
+    return $ReleaseEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class ReleaseEntry extends DataClass implements Insertable<ReleaseEntry> {
+  final String infohash;
+  final String title;
+  final int? pubDateMs;
+  final String? variant;
+  final bool outdated;
+  final String? fileName;
+  final String? crc32;
+  final String? magnet;
+  final int firstSeenAtMs;
+  final int? seenAtMs;
+  const ReleaseEntry({
+    required this.infohash,
+    required this.title,
+    this.pubDateMs,
+    this.variant,
+    required this.outdated,
+    this.fileName,
+    this.crc32,
+    this.magnet,
+    required this.firstSeenAtMs,
+    this.seenAtMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['infohash'] = Variable<String>(infohash);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || pubDateMs != null) {
+      map['pub_date_ms'] = Variable<int>(pubDateMs);
+    }
+    if (!nullToAbsent || variant != null) {
+      map['variant'] = Variable<String>(variant);
+    }
+    map['outdated'] = Variable<bool>(outdated);
+    if (!nullToAbsent || fileName != null) {
+      map['file_name'] = Variable<String>(fileName);
+    }
+    if (!nullToAbsent || crc32 != null) {
+      map['crc32'] = Variable<String>(crc32);
+    }
+    if (!nullToAbsent || magnet != null) {
+      map['magnet'] = Variable<String>(magnet);
+    }
+    map['first_seen_at_ms'] = Variable<int>(firstSeenAtMs);
+    if (!nullToAbsent || seenAtMs != null) {
+      map['seen_at_ms'] = Variable<int>(seenAtMs);
+    }
+    return map;
+  }
+
+  ReleaseEntriesCompanion toCompanion(bool nullToAbsent) {
+    return ReleaseEntriesCompanion(
+      infohash: Value(infohash),
+      title: Value(title),
+      pubDateMs: pubDateMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pubDateMs),
+      variant: variant == null && nullToAbsent
+          ? const Value.absent()
+          : Value(variant),
+      outdated: Value(outdated),
+      fileName: fileName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fileName),
+      crc32: crc32 == null && nullToAbsent
+          ? const Value.absent()
+          : Value(crc32),
+      magnet: magnet == null && nullToAbsent
+          ? const Value.absent()
+          : Value(magnet),
+      firstSeenAtMs: Value(firstSeenAtMs),
+      seenAtMs: seenAtMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(seenAtMs),
+    );
+  }
+
+  factory ReleaseEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReleaseEntry(
+      infohash: serializer.fromJson<String>(json['infohash']),
+      title: serializer.fromJson<String>(json['title']),
+      pubDateMs: serializer.fromJson<int?>(json['pubDateMs']),
+      variant: serializer.fromJson<String?>(json['variant']),
+      outdated: serializer.fromJson<bool>(json['outdated']),
+      fileName: serializer.fromJson<String?>(json['fileName']),
+      crc32: serializer.fromJson<String?>(json['crc32']),
+      magnet: serializer.fromJson<String?>(json['magnet']),
+      firstSeenAtMs: serializer.fromJson<int>(json['firstSeenAtMs']),
+      seenAtMs: serializer.fromJson<int?>(json['seenAtMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'infohash': serializer.toJson<String>(infohash),
+      'title': serializer.toJson<String>(title),
+      'pubDateMs': serializer.toJson<int?>(pubDateMs),
+      'variant': serializer.toJson<String?>(variant),
+      'outdated': serializer.toJson<bool>(outdated),
+      'fileName': serializer.toJson<String?>(fileName),
+      'crc32': serializer.toJson<String?>(crc32),
+      'magnet': serializer.toJson<String?>(magnet),
+      'firstSeenAtMs': serializer.toJson<int>(firstSeenAtMs),
+      'seenAtMs': serializer.toJson<int?>(seenAtMs),
+    };
+  }
+
+  ReleaseEntry copyWith({
+    String? infohash,
+    String? title,
+    Value<int?> pubDateMs = const Value.absent(),
+    Value<String?> variant = const Value.absent(),
+    bool? outdated,
+    Value<String?> fileName = const Value.absent(),
+    Value<String?> crc32 = const Value.absent(),
+    Value<String?> magnet = const Value.absent(),
+    int? firstSeenAtMs,
+    Value<int?> seenAtMs = const Value.absent(),
+  }) => ReleaseEntry(
+    infohash: infohash ?? this.infohash,
+    title: title ?? this.title,
+    pubDateMs: pubDateMs.present ? pubDateMs.value : this.pubDateMs,
+    variant: variant.present ? variant.value : this.variant,
+    outdated: outdated ?? this.outdated,
+    fileName: fileName.present ? fileName.value : this.fileName,
+    crc32: crc32.present ? crc32.value : this.crc32,
+    magnet: magnet.present ? magnet.value : this.magnet,
+    firstSeenAtMs: firstSeenAtMs ?? this.firstSeenAtMs,
+    seenAtMs: seenAtMs.present ? seenAtMs.value : this.seenAtMs,
+  );
+  ReleaseEntry copyWithCompanion(ReleaseEntriesCompanion data) {
+    return ReleaseEntry(
+      infohash: data.infohash.present ? data.infohash.value : this.infohash,
+      title: data.title.present ? data.title.value : this.title,
+      pubDateMs: data.pubDateMs.present ? data.pubDateMs.value : this.pubDateMs,
+      variant: data.variant.present ? data.variant.value : this.variant,
+      outdated: data.outdated.present ? data.outdated.value : this.outdated,
+      fileName: data.fileName.present ? data.fileName.value : this.fileName,
+      crc32: data.crc32.present ? data.crc32.value : this.crc32,
+      magnet: data.magnet.present ? data.magnet.value : this.magnet,
+      firstSeenAtMs: data.firstSeenAtMs.present
+          ? data.firstSeenAtMs.value
+          : this.firstSeenAtMs,
+      seenAtMs: data.seenAtMs.present ? data.seenAtMs.value : this.seenAtMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReleaseEntry(')
+          ..write('infohash: $infohash, ')
+          ..write('title: $title, ')
+          ..write('pubDateMs: $pubDateMs, ')
+          ..write('variant: $variant, ')
+          ..write('outdated: $outdated, ')
+          ..write('fileName: $fileName, ')
+          ..write('crc32: $crc32, ')
+          ..write('magnet: $magnet, ')
+          ..write('firstSeenAtMs: $firstSeenAtMs, ')
+          ..write('seenAtMs: $seenAtMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    infohash,
+    title,
+    pubDateMs,
+    variant,
+    outdated,
+    fileName,
+    crc32,
+    magnet,
+    firstSeenAtMs,
+    seenAtMs,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReleaseEntry &&
+          other.infohash == this.infohash &&
+          other.title == this.title &&
+          other.pubDateMs == this.pubDateMs &&
+          other.variant == this.variant &&
+          other.outdated == this.outdated &&
+          other.fileName == this.fileName &&
+          other.crc32 == this.crc32 &&
+          other.magnet == this.magnet &&
+          other.firstSeenAtMs == this.firstSeenAtMs &&
+          other.seenAtMs == this.seenAtMs);
+}
+
+class ReleaseEntriesCompanion extends UpdateCompanion<ReleaseEntry> {
+  final Value<String> infohash;
+  final Value<String> title;
+  final Value<int?> pubDateMs;
+  final Value<String?> variant;
+  final Value<bool> outdated;
+  final Value<String?> fileName;
+  final Value<String?> crc32;
+  final Value<String?> magnet;
+  final Value<int> firstSeenAtMs;
+  final Value<int?> seenAtMs;
+  final Value<int> rowid;
+  const ReleaseEntriesCompanion({
+    this.infohash = const Value.absent(),
+    this.title = const Value.absent(),
+    this.pubDateMs = const Value.absent(),
+    this.variant = const Value.absent(),
+    this.outdated = const Value.absent(),
+    this.fileName = const Value.absent(),
+    this.crc32 = const Value.absent(),
+    this.magnet = const Value.absent(),
+    this.firstSeenAtMs = const Value.absent(),
+    this.seenAtMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ReleaseEntriesCompanion.insert({
+    required String infohash,
+    required String title,
+    this.pubDateMs = const Value.absent(),
+    this.variant = const Value.absent(),
+    this.outdated = const Value.absent(),
+    this.fileName = const Value.absent(),
+    this.crc32 = const Value.absent(),
+    this.magnet = const Value.absent(),
+    required int firstSeenAtMs,
+    this.seenAtMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : infohash = Value(infohash),
+       title = Value(title),
+       firstSeenAtMs = Value(firstSeenAtMs);
+  static Insertable<ReleaseEntry> custom({
+    Expression<String>? infohash,
+    Expression<String>? title,
+    Expression<int>? pubDateMs,
+    Expression<String>? variant,
+    Expression<bool>? outdated,
+    Expression<String>? fileName,
+    Expression<String>? crc32,
+    Expression<String>? magnet,
+    Expression<int>? firstSeenAtMs,
+    Expression<int>? seenAtMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (infohash != null) 'infohash': infohash,
+      if (title != null) 'title': title,
+      if (pubDateMs != null) 'pub_date_ms': pubDateMs,
+      if (variant != null) 'variant': variant,
+      if (outdated != null) 'outdated': outdated,
+      if (fileName != null) 'file_name': fileName,
+      if (crc32 != null) 'crc32': crc32,
+      if (magnet != null) 'magnet': magnet,
+      if (firstSeenAtMs != null) 'first_seen_at_ms': firstSeenAtMs,
+      if (seenAtMs != null) 'seen_at_ms': seenAtMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ReleaseEntriesCompanion copyWith({
+    Value<String>? infohash,
+    Value<String>? title,
+    Value<int?>? pubDateMs,
+    Value<String?>? variant,
+    Value<bool>? outdated,
+    Value<String?>? fileName,
+    Value<String?>? crc32,
+    Value<String?>? magnet,
+    Value<int>? firstSeenAtMs,
+    Value<int?>? seenAtMs,
+    Value<int>? rowid,
+  }) {
+    return ReleaseEntriesCompanion(
+      infohash: infohash ?? this.infohash,
+      title: title ?? this.title,
+      pubDateMs: pubDateMs ?? this.pubDateMs,
+      variant: variant ?? this.variant,
+      outdated: outdated ?? this.outdated,
+      fileName: fileName ?? this.fileName,
+      crc32: crc32 ?? this.crc32,
+      magnet: magnet ?? this.magnet,
+      firstSeenAtMs: firstSeenAtMs ?? this.firstSeenAtMs,
+      seenAtMs: seenAtMs ?? this.seenAtMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (infohash.present) {
+      map['infohash'] = Variable<String>(infohash.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (pubDateMs.present) {
+      map['pub_date_ms'] = Variable<int>(pubDateMs.value);
+    }
+    if (variant.present) {
+      map['variant'] = Variable<String>(variant.value);
+    }
+    if (outdated.present) {
+      map['outdated'] = Variable<bool>(outdated.value);
+    }
+    if (fileName.present) {
+      map['file_name'] = Variable<String>(fileName.value);
+    }
+    if (crc32.present) {
+      map['crc32'] = Variable<String>(crc32.value);
+    }
+    if (magnet.present) {
+      map['magnet'] = Variable<String>(magnet.value);
+    }
+    if (firstSeenAtMs.present) {
+      map['first_seen_at_ms'] = Variable<int>(firstSeenAtMs.value);
+    }
+    if (seenAtMs.present) {
+      map['seen_at_ms'] = Variable<int>(seenAtMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReleaseEntriesCompanion(')
+          ..write('infohash: $infohash, ')
+          ..write('title: $title, ')
+          ..write('pubDateMs: $pubDateMs, ')
+          ..write('variant: $variant, ')
+          ..write('outdated: $outdated, ')
+          ..write('fileName: $fileName, ')
+          ..write('crc32: $crc32, ')
+          ..write('magnet: $magnet, ')
+          ..write('firstSeenAtMs: $firstSeenAtMs, ')
+          ..write('seenAtMs: $seenAtMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SyncStateTable extends SyncState
     with TableInfo<$SyncStateTable, SyncStateData> {
   @override
@@ -2721,10 +3340,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DownloadEntriesTable downloadEntries = $DownloadEntriesTable(
     this,
   );
+  late final $ReleaseEntriesTable releaseEntries = $ReleaseEntriesTable(this);
   late final $SyncStateTable syncState = $SyncStateTable(this);
   late final CatalogDao catalogDao = CatalogDao(this as AppDatabase);
   late final ProgressDao progressDao = ProgressDao(this as AppDatabase);
   late final DownloadsDao downloadsDao = DownloadsDao(this as AppDatabase);
+  late final ReleasesDao releasesDao = ReleasesDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2735,6 +3356,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     sources,
     progressEntries,
     downloadEntries,
+    releaseEntries,
     syncState,
   ];
 }
@@ -4201,6 +4823,305 @@ typedef $$DownloadEntriesTableProcessedTableManager =
       DownloadEntry,
       PrefetchHooks Function()
     >;
+typedef $$ReleaseEntriesTableCreateCompanionBuilder =
+    ReleaseEntriesCompanion Function({
+      required String infohash,
+      required String title,
+      Value<int?> pubDateMs,
+      Value<String?> variant,
+      Value<bool> outdated,
+      Value<String?> fileName,
+      Value<String?> crc32,
+      Value<String?> magnet,
+      required int firstSeenAtMs,
+      Value<int?> seenAtMs,
+      Value<int> rowid,
+    });
+typedef $$ReleaseEntriesTableUpdateCompanionBuilder =
+    ReleaseEntriesCompanion Function({
+      Value<String> infohash,
+      Value<String> title,
+      Value<int?> pubDateMs,
+      Value<String?> variant,
+      Value<bool> outdated,
+      Value<String?> fileName,
+      Value<String?> crc32,
+      Value<String?> magnet,
+      Value<int> firstSeenAtMs,
+      Value<int?> seenAtMs,
+      Value<int> rowid,
+    });
+
+class $$ReleaseEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $ReleaseEntriesTable> {
+  $$ReleaseEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get infohash => $composableBuilder(
+    column: $table.infohash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pubDateMs => $composableBuilder(
+    column: $table.pubDateMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get variant => $composableBuilder(
+    column: $table.variant,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get outdated => $composableBuilder(
+    column: $table.outdated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fileName => $composableBuilder(
+    column: $table.fileName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get crc32 => $composableBuilder(
+    column: $table.crc32,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get magnet => $composableBuilder(
+    column: $table.magnet,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get firstSeenAtMs => $composableBuilder(
+    column: $table.firstSeenAtMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seenAtMs => $composableBuilder(
+    column: $table.seenAtMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ReleaseEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ReleaseEntriesTable> {
+  $$ReleaseEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get infohash => $composableBuilder(
+    column: $table.infohash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pubDateMs => $composableBuilder(
+    column: $table.pubDateMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get variant => $composableBuilder(
+    column: $table.variant,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get outdated => $composableBuilder(
+    column: $table.outdated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fileName => $composableBuilder(
+    column: $table.fileName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get crc32 => $composableBuilder(
+    column: $table.crc32,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get magnet => $composableBuilder(
+    column: $table.magnet,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get firstSeenAtMs => $composableBuilder(
+    column: $table.firstSeenAtMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seenAtMs => $composableBuilder(
+    column: $table.seenAtMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ReleaseEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ReleaseEntriesTable> {
+  $$ReleaseEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get infohash =>
+      $composableBuilder(column: $table.infohash, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<int> get pubDateMs =>
+      $composableBuilder(column: $table.pubDateMs, builder: (column) => column);
+
+  GeneratedColumn<String> get variant =>
+      $composableBuilder(column: $table.variant, builder: (column) => column);
+
+  GeneratedColumn<bool> get outdated =>
+      $composableBuilder(column: $table.outdated, builder: (column) => column);
+
+  GeneratedColumn<String> get fileName =>
+      $composableBuilder(column: $table.fileName, builder: (column) => column);
+
+  GeneratedColumn<String> get crc32 =>
+      $composableBuilder(column: $table.crc32, builder: (column) => column);
+
+  GeneratedColumn<String> get magnet =>
+      $composableBuilder(column: $table.magnet, builder: (column) => column);
+
+  GeneratedColumn<int> get firstSeenAtMs => $composableBuilder(
+    column: $table.firstSeenAtMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get seenAtMs =>
+      $composableBuilder(column: $table.seenAtMs, builder: (column) => column);
+}
+
+class $$ReleaseEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ReleaseEntriesTable,
+          ReleaseEntry,
+          $$ReleaseEntriesTableFilterComposer,
+          $$ReleaseEntriesTableOrderingComposer,
+          $$ReleaseEntriesTableAnnotationComposer,
+          $$ReleaseEntriesTableCreateCompanionBuilder,
+          $$ReleaseEntriesTableUpdateCompanionBuilder,
+          (
+            ReleaseEntry,
+            BaseReferences<_$AppDatabase, $ReleaseEntriesTable, ReleaseEntry>,
+          ),
+          ReleaseEntry,
+          PrefetchHooks Function()
+        > {
+  $$ReleaseEntriesTableTableManager(
+    _$AppDatabase db,
+    $ReleaseEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ReleaseEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ReleaseEntriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ReleaseEntriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> infohash = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<int?> pubDateMs = const Value.absent(),
+                Value<String?> variant = const Value.absent(),
+                Value<bool> outdated = const Value.absent(),
+                Value<String?> fileName = const Value.absent(),
+                Value<String?> crc32 = const Value.absent(),
+                Value<String?> magnet = const Value.absent(),
+                Value<int> firstSeenAtMs = const Value.absent(),
+                Value<int?> seenAtMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ReleaseEntriesCompanion(
+                infohash: infohash,
+                title: title,
+                pubDateMs: pubDateMs,
+                variant: variant,
+                outdated: outdated,
+                fileName: fileName,
+                crc32: crc32,
+                magnet: magnet,
+                firstSeenAtMs: firstSeenAtMs,
+                seenAtMs: seenAtMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String infohash,
+                required String title,
+                Value<int?> pubDateMs = const Value.absent(),
+                Value<String?> variant = const Value.absent(),
+                Value<bool> outdated = const Value.absent(),
+                Value<String?> fileName = const Value.absent(),
+                Value<String?> crc32 = const Value.absent(),
+                Value<String?> magnet = const Value.absent(),
+                required int firstSeenAtMs,
+                Value<int?> seenAtMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ReleaseEntriesCompanion.insert(
+                infohash: infohash,
+                title: title,
+                pubDateMs: pubDateMs,
+                variant: variant,
+                outdated: outdated,
+                fileName: fileName,
+                crc32: crc32,
+                magnet: magnet,
+                firstSeenAtMs: firstSeenAtMs,
+                seenAtMs: seenAtMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ReleaseEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ReleaseEntriesTable,
+      ReleaseEntry,
+      $$ReleaseEntriesTableFilterComposer,
+      $$ReleaseEntriesTableOrderingComposer,
+      $$ReleaseEntriesTableAnnotationComposer,
+      $$ReleaseEntriesTableCreateCompanionBuilder,
+      $$ReleaseEntriesTableUpdateCompanionBuilder,
+      (
+        ReleaseEntry,
+        BaseReferences<_$AppDatabase, $ReleaseEntriesTable, ReleaseEntry>,
+      ),
+      ReleaseEntry,
+      PrefetchHooks Function()
+    >;
 typedef $$SyncStateTableCreateCompanionBuilder =
     SyncStateCompanion Function({
       required String key,
@@ -4353,6 +5274,8 @@ class $AppDatabaseManager {
       $$ProgressEntriesTableTableManager(_db, _db.progressEntries);
   $$DownloadEntriesTableTableManager get downloadEntries =>
       $$DownloadEntriesTableTableManager(_db, _db.downloadEntries);
+  $$ReleaseEntriesTableTableManager get releaseEntries =>
+      $$ReleaseEntriesTableTableManager(_db, _db.releaseEntries);
   $$SyncStateTableTableManager get syncState =>
       $$SyncStateTableTableManager(_db, _db.syncState);
 }
@@ -4405,6 +5328,21 @@ class DownloadsDaoManager {
       $$DownloadEntriesTableTableManager(
         _db.attachedDatabase,
         _db.downloadEntries,
+      );
+}
+
+mixin _$ReleasesDaoMixin on DatabaseAccessor<AppDatabase> {
+  $ReleaseEntriesTable get releaseEntries => attachedDatabase.releaseEntries;
+  ReleasesDaoManager get managers => ReleasesDaoManager(this);
+}
+
+class ReleasesDaoManager {
+  final _$ReleasesDaoMixin _db;
+  ReleasesDaoManager(this._db);
+  $$ReleaseEntriesTableTableManager get releaseEntries =>
+      $$ReleaseEntriesTableTableManager(
+        _db.attachedDatabase,
+        _db.releaseEntries,
       );
 }
 

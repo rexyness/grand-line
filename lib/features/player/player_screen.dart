@@ -8,6 +8,7 @@ import '../../data/db/database.dart';
 import '../../data/platform/platform_capabilities.dart';
 import '../../data/playback/media_kit_controller.dart';
 import '../../data/playback/playback_controller.dart';
+import '../../data/releases/release_service.dart';
 import '../home/home_model.dart';
 import 'player_model.dart';
 
@@ -51,6 +52,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void initState() {
     super.initState();
     _db = ref.read(appDatabaseProvider);
+    // Opening an episode clears its release badges (spec §9.3).
+    unawaited(ref
+        .read(releaseServiceProvider)
+        .markEpisodeSeen(widget.arc.arc.part, _episode.number));
     _start();
   }
 
