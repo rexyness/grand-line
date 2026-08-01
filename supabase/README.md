@@ -4,7 +4,22 @@ Spec §3. Free tier, zero-ops: catalog + releases tables written by the
 `catalog-sync` edge function, read anonymously by clients; watch progress
 behind owner-only RLS with a most-recent-activity-wins RPC.
 
-## One-time setup
+## Live project (set up 2026-08-01)
+
+- Project ref `phekxdvpamrqgjvkpuab` (Central EU, Frankfurt), URL
+  `https://phekxdvpamrqgjvkpuab.supabase.co`. Publishable (anon) key in
+  [`dart_defines.json`](../dart_defines.json) — public by design, RLS
+  enforces everything.
+- Both migrations applied via the SQL editor; `catalog-sync` deployed from
+  the dashboard editor (same two files as this repo); `CRON_SECRET` set;
+  `pg_cron`/`pg_net` enabled; jobs `releases-diff` (every 12 h) and
+  `catalog-full-sync` (daily 04:30 UTC) active. First full seed: 37 arcs,
+  477 episodes, 2227 stream + 488 download sources, 358 releases.
+- Still pending (implementation step 10): auth email-OTP configuration
+  (6-digit token template).
+- Run the app against it: `flutter run --dart-define-from-file=dart_defines.json`
+
+## One-time setup (from scratch)
 
 1. Create a project at [database.new](https://database.new) (free tier).
 2. Install the [Supabase CLI](https://supabase.com/docs/guides/cli), then from
