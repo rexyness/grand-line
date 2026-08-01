@@ -16,7 +16,7 @@ An implementation-ready spec at `.scratch/app-spec/spec.md` for **grand-line**: 
   - Playback: streaming AND offline downloads.
   - Features: watch progress + resume, subtitle selection, quality selection, new-release notifications.
   - Distribution: open-source on GitHub with Releases (APK + Windows/Linux binaries); no app stores.
-  - Watch progress syncs via a hosted backend — which one is [Choose the sync backend and account model](issues/09-sync-backend-decision.md).
+  - Watch progress syncs via **Supabase** — decided in [Decide: sync backend and account model](issues/09-sync-backend-decision.md).
   - Name: **grand-line** (Dart package `grand_line`), living at `D:\dev\grand-line`.
 - Wayfinder default holds: plan, don't build. Execution starts after the spec exists.
 
@@ -32,12 +32,12 @@ An implementation-ready spec at `.scratch/app-spec/spec.md` for **grand-line**: 
 - [Prototype: core UI — arc/episode browser and player screen](issues/06-prototype-core-ui.md) — Variant E "Immersive carousel" wins: full-bleed arc backdrop home with bottom arc strip + episode chips, Resume/Download as primary actions, full-screen player with track/quality pill menus; 5-variant prototype captured on branch `prototype/core-ui`.
 - [Decide: content source strategy](issues/07-content-source-strategy.md) — MP4s for streaming (quality tiers, hardsub/dub) and canonical MKVs for downloads (track selection offline); catalog from ladyisatis/one-pace-metadata JSON + vendored snapshot, RSS for new releases; Pixeldrain IDs via a scheduled Supabase edge function (clients never scrape); dead links auto-refresh then degrade honestly to retry + magnet handoff.
 - [Decide: playback stack](issues/08-playback-stack-decision.md) — media_kit (libass on) everywhere behind an app-owned PlaybackController abstraction; ASS-on-Android spike is implementation step 0 with a written switch-trigger to video_player+fvp; pin media_kit's version.
+- [Decide: sync backend and account model](issues/09-sync-backend-decision.md) — Supabase; app fully usable local-only with sync strictly opt-in (local history uploads on first sign-in); email OTP as sole sign-in method; watch progress only syncs (position + watched per episode); most-recent-activity-wins merge on client `updated_at` (supersedes furthest-wins — rewatch and mark-unwatched must move backward).
+- [Research: detecting and notifying new One Pace releases](issues/11-research-release-notifications.md) — releases RSS is a clean server-side delta source (stable infohash GUIDs, `outdated` flags; 403s without browser UA); Supabase pg_cron → `releases` table, clients poll it anon on launch; remote push impossible on sideloaded iOS, cheap only on Android; desktop notifies only while running. Recommended: in-app "New" list everywhere + opt-in OS notifications where cheap.
 
 ## Not yet specified
 
-- Notification design detail (in-app list vs OS notifications, polling cadence, desktop behavior) — sharpens after [Research: detecting and notifying new One Pace releases](issues/11-research-release-notifications.md).
 - Secondary surfaces in the chosen immersive-carousel idiom: search, downloads-manager view, settings, account/sync UI — design during spec assembly (or a small follow-up prototype if reactions are needed).
-- Sync conflict resolution and offline-first semantics — sharpens once the backend is chosen.
 - Legal/branding posture: disclaimer wording and in-app attribution/donation-link placement — sharpens at the release-strategy ticket (the courtesy contact itself graduated to [Task: email the One Pace team](issues/15-contact-one-pace-team.md)).
 - iOS install story for an open-source, non-store app (sideloading, AltStore, self-signing cadence) — sharpens after CI research.
 
