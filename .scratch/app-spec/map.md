@@ -31,13 +31,13 @@ An implementation-ready spec at `.scratch/app-spec/spec.md` for **grand-line**: 
 - [Research: how One Pace distributes episodes and metadata](issues/01-research-content-sources.md) — no official API (old GraphQL removed 2026); source catalog from the full-history releases RSS + community CRC32-keyed JSON (ladyisatis/one-pace-metadata), stream hardsubbed MP4s (480/720/1080p) straight off Pixeldrain's range-request/CORS-open file API, with canonical multi-sub HEVC MKVs via torrent/Pixeldrain as the download option.
 - [Prototype: core UI — arc/episode browser and player screen](issues/06-prototype-core-ui.md) — Variant E "Immersive carousel" wins: full-bleed arc backdrop home with bottom arc strip + episode chips, Resume/Download as primary actions, full-screen player with track/quality pill menus; 5-variant prototype captured on branch `prototype/core-ui`.
 - [Decide: content source strategy](issues/07-content-source-strategy.md) — MP4s for streaming (quality tiers, hardsub/dub) and canonical MKVs for downloads (track selection offline); catalog from ladyisatis/one-pace-metadata JSON + vendored snapshot, RSS for new releases; Pixeldrain IDs via a scheduled Supabase edge function (clients never scrape); dead links auto-refresh then degrade honestly to retry + magnet handoff.
+- [Decide: playback stack](issues/08-playback-stack-decision.md) — media_kit (libass on) everywhere behind an app-owned PlaybackController abstraction; ASS-on-Android spike is implementation step 0 with a written switch-trigger to video_player+fvp; pin media_kit's version.
 
 ## Not yet specified
 
 - Notification design detail (in-app list vs OS notifications, polling cadence, desktop behavior) — sharpens after [Research: detecting and notifying new One Pace releases](issues/11-research-release-notifications.md).
 - Secondary surfaces in the chosen immersive-carousel idiom: search, downloads-manager view, settings, account/sync UI — design during spec assembly (or a small follow-up prototype if reactions are needed).
 - Sync conflict resolution and offline-first semantics — sharpens once the backend is chosen.
-- Subtitle rendering constraints: One Pace ships soft subs (ASS) inside MKV; whether the chosen player renders them natively decides a lot — sharpens after playback research.
 - Legal/branding posture: disclaimer wording and in-app attribution/donation-link placement — sharpens at the release-strategy ticket (the courtesy contact itself graduated to [Task: email the One Pace team](issues/15-contact-one-pace-team.md)).
 - iOS install story for an open-source, non-store app (sideloading, AltStore, self-signing cadence) — sharpens after CI research.
 
