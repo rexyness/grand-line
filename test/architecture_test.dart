@@ -49,6 +49,9 @@ void main() {
       'package:supabase': ['lib/data/sync/'],
       'package:drift': ['lib/data/db/'],
       'package:window_manager': ['lib/main.dart', 'lib/data/platform/'],
+      'package:url_launcher': ['lib/data/platform/'],
+      'package:file_selector': ['lib/data/platform/'],
+      'package:package_info_plus': ['lib/data/platform/'],
     };
     final violations = <String>[];
     for (final entry in importsByFile.entries) {

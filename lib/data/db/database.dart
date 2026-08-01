@@ -170,6 +170,11 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
           .watchSingleOrNull()
           .map((row) => row?.value);
 
+  Stream<Map<String, String>> watchSyncValuesWithPrefix(String prefix) =>
+      (select(syncState)..where((s) => s.key.like('$prefix%')))
+          .watch()
+          .map((rows) => {for (final r in rows) r.key: r.value});
+
   Future<int> countArcs() async {
     final row = await (selectOnly(arcs)..addColumns([arcs.part.count()])).getSingle();
     return row.read(arcs.part.count()) ?? 0;

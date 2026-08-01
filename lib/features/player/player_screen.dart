@@ -9,6 +9,7 @@ import '../../data/platform/platform_capabilities.dart';
 import '../../data/playback/media_kit_controller.dart';
 import '../../data/playback/playback_controller.dart';
 import '../../data/releases/release_service.dart';
+import '../../data/settings/settings_service.dart';
 import '../home/home_model.dart';
 import 'player_model.dart';
 
@@ -43,8 +44,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Timer? _hideTimer;
   bool _controlsVisible = true;
   bool _watchedMarked = false;
+  bool _prefsLoaded = false;
+  bool _tracksApplied = false;
   int _preferredQuality = 1080;
   String _preferredVariant = 'ensub';
+  String _subtitleLang = 'eng';
+  String _audioLang = 'jpn';
 
   EpisodeView get _episode => widget.episodes[widget.index];
 
@@ -60,6 +65,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _start() async {
+    // Settings seed the initial quality/variant/track preferences
+    // (spec §4.5); in-session pill choices then override them.
+    if (!_prefsLoaded) {
+      _prefsLoaded = true;
+      final settings = await ref.read(settingsServiceProvider).load();
+      _preferredQuality = settings.preferredQuality;
+      _preferredVariant = settings.streamVariant;
+      _subtitleLang = settings.subtitleLang;
+      _audioLang = settings.audioLang;
+    }
     final sources = await _db.catalogDao
         .sourcesForEpisode(widget.arc.arc.part, _episode.number);
     final downloads = await _db.downloadsDao.watchAll().first;
@@ -83,6 +98,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _subscription = controller.snapshots.listen((s) {
       if (!mounted) return;
       setState(() => _snapshot = s);
+      _applyTrackPreferences(s, controller);
       _maybeMarkWatched(s);
     });
 
@@ -111,6 +127,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       watched: _watchedMarked || _episode.watched,
       updatedAtMs: DateTime.now().millisecondsSinceEpoch,
     );
+  }
+
+  /// Applies the preferred subtitle/audio languages once the local MKV's
+  /// embedded tracks appear (spec §4.5); manual pill choices afterwards win.
+  void _applyTrackPreferences(PlaybackSnapshot s, PlaybackController controller) {
+    if (_tracksApplied || _source is! LocalPlaySource) return;
+    if (s.subtitleTracks.isEmpty && s.audioTracks.isEmpty) return;
+    _tracksApplied = true;
+    if (_subtitleLang == 'off') {
+      unawaited(controller.setSubtitleTrack(null));
+    } else if (pickTrackForLanguage(s.subtitleTracks, _subtitleLang)
+        case final track?) {
+      unawaited(controller.setSubtitleTrack(track.id));
+    }
+    if (pickTrackForLanguage(s.audioTracks, _audioLang) case final track?) {
+      unawaited(controller.setAudioTrack(track.id));
+    }
   }
 
   void _maybeMarkWatched(PlaybackSnapshot s) {

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/downloads/download_service.dart';
+import '../../data/platform/external_services.dart';
+import '../../data/platform/platform_capabilities.dart';
 import '../../data/releases/release_service.dart';
 import '../../data/sync/sync_service.dart';
 import '../account/account_screen.dart';
@@ -10,6 +13,10 @@ import '../downloads/downloads_screen.dart';
 import '../player/player_screen.dart';
 import '../releases/releases_providers.dart';
 import '../releases/releases_screen.dart';
+import '../search/search_overlay.dart';
+import '../settings/about_screen.dart';
+import '../settings/settings_screen.dart';
+import '../settings/support_links.dart';
 import 'arc_backdrop.dart';
 import 'home_model.dart';
 import 'home_providers.dart';
@@ -31,7 +38,7 @@ class HomeScreen extends ConsumerWidget {
     ref.watch(releasesInitProvider);
     final views = ref.watch(arcViewsProvider);
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: Colors.black,
       body: switch (views) {
         AsyncData(:final value) when value.isNotEmpty =>
@@ -44,6 +51,21 @@ class HomeScreen extends ConsumerWidget {
           ),
         _ => const Center(child: CircularProgressIndicator()),
       },
+    );
+
+    // Desktop search shortcuts `/` and Ctrl+K (spec §4.3), behind
+    // capability checks like the player's.
+    if (!ref.watch(platformCapabilitiesProvider).hasWindowManagement) {
+      return scaffold;
+    }
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.slash): () =>
+            showSearchOverlay(context),
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true): () =>
+            showSearchOverlay(context),
+      },
+      child: Focus(autofocus: true, child: scaffold),
     );
   }
 }
@@ -133,13 +155,11 @@ class _TopChrome extends ConsumerWidget {
             ),
           ),
           const Spacer(),
-          // Search arrives in a later step; the slot exists so the chrome
-          // doesn't reflow.
           IconButton(
             color: Colors.white,
             icon: const Icon(Icons.search),
-            tooltip: 'Search (coming soon)',
-            onPressed: null,
+            tooltip: 'Search',
+            onPressed: () => showSearchOverlay(context),
           ),
           IconButton(
             color: Colors.white,
@@ -181,6 +201,25 @@ class _TopChrome extends ConsumerWidget {
                 leadingIcon: const Icon(Icons.refresh),
                 onPressed: onRefresh,
                 child: const Text('Refresh catalog'),
+              ),
+              MenuItemButton(
+                leadingIcon: const Icon(Icons.settings_outlined),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const SettingsScreen(),
+                )),
+                child: const Text('Settings'),
+              ),
+              MenuItemButton(
+                leadingIcon: const Icon(Icons.favorite_outline),
+                onPressed: () => openExternalUrl(onePaceSupportUrl),
+                child: const Text('Support One Pace'),
+              ),
+              MenuItemButton(
+                leadingIcon: const Icon(Icons.info_outline),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const AboutScreen(),
+                )),
+                child: const Text('About'),
               ),
             ],
           ),

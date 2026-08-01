@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../catalog/pixeldrain.dart';
 import '../db/database.dart';
 import '../platform/platform_capabilities.dart';
+import '../settings/settings_service.dart';
 
 /// Picks the MKV to download for an episode (spec §7.2: MKV-only, no quality
 /// picker): a 'download'-kind source with a resolved Pixeldrain ID, preferring
@@ -28,15 +29,20 @@ Source? chooseDownloadSource(List<Source> sources) {
 /// persistent task database on every launch. Nothing outside `data/downloads/`
 /// touches the engine package.
 class DownloadService {
-  DownloadService(this._db);
+  DownloadService(this._db, this._settings);
 
   /// Spec §7.4: 2 fixed lanes, FIFO, no concurrency setting.
   static const lanes = 2;
   static const retries = 3;
 
   final AppDatabase _db;
+  final SettingsService _settings;
   final FileDownloader _downloader = FileDownloader();
   StreamSubscription<TaskUpdate>? _subscription;
+  StreamSubscription<AppSettings>? _settingsSub;
+  StreamSubscription<List<ProgressEntry>>? _progressSub;
+  AppSettings _current = const AppSettings();
+  bool _wifiPreferenceApplies = false;
 
   final _progress = <(int, int), double>{};
   final _progressController =
@@ -56,22 +62,68 @@ class DownloadService {
   }
 
   /// Call once at startup, before any other method: configures the 2-lane
-  /// holding queue, wires status/progress updates, recovers tasks that ran
-  /// while the app was gone, and reconciles the registry (spec §7.4).
-  Future<void> init({required bool wifiOnly}) async {
+  /// holding queue, wires status/progress updates, applies the stored
+  /// settings (and follows their changes), recovers tasks that ran while
+  /// the app was gone, and reconciles the registry (spec §7.4).
+  ///
+  /// [wifiPreferenceApplies] is the platform's `hasCellularToggle` — the
+  /// Wi-Fi-only preference is meaningless where there is no cellular.
+  Future<void> init({required bool wifiPreferenceApplies}) async {
+    _wifiPreferenceApplies = wifiPreferenceApplies;
     await _downloader.configure(
         globalConfig: (Config.holdingQueue, (lanes, null, null)));
     _subscription = _downloader.updates.listen(_onUpdate);
     await _downloader.start();
-    if (wifiOnly) {
-      await _downloader.requireWiFi(RequireWiFi.forAllTasks);
-    }
+    _current = await _settings.load();
+    if (_wifiPreferenceApplies) await _applyWifi(_current.wifiOnly);
+    _settingsSub = _settings.watch().listen(
+        (s) => unawaited(_onSettings(s).catchError((Object _) {})));
+    // skip(1) drops the initial snapshot; only real progress changes can
+    // flip an episode to watched.
+    _progressSub = _db.progressDao.watchAll().skip(1).listen((_) {
+      if (_current.autoDeleteWatched) {
+        unawaited(deleteWatchedDownloads().catchError((Object _) {}));
+      }
+    });
     await _reconcile();
+    if (_current.autoDeleteWatched) await deleteWatchedDownloads();
   }
 
   Future<void> dispose() async {
     await _subscription?.cancel();
+    await _settingsSub?.cancel();
+    await _progressSub?.cancel();
     await _progressController.close();
+  }
+
+  Future<void> _onSettings(AppSettings s) async {
+    final previous = _current;
+    _current = s;
+    if (_wifiPreferenceApplies && s.wifiOnly != previous.wifiOnly) {
+      await _applyWifi(s.wifiOnly);
+    }
+    if (s.autoDeleteWatched && !previous.autoDeleteWatched) {
+      await deleteWatchedDownloads();
+    }
+  }
+
+  Future<void> _applyWifi(bool wifiOnly) => _downloader.requireWiFi(
+      wifiOnly ? RequireWiFi.forAllTasks : RequireWiFi.asSetByTask);
+
+  /// Spec §7.5's opt-in auto-delete: drops completed downloads of episodes
+  /// the local progress table marks watched.
+  Future<void> deleteWatchedDownloads() async {
+    final watched = {
+      for (final p in await _db.progressDao.all())
+        if (p.watched) (p.arcPart, p.number),
+    };
+    if (watched.isEmpty) return;
+    for (final row in await _db.downloadsDao.all()) {
+      if (row.status == 'complete' &&
+          watched.contains((row.arcPart, row.number))) {
+        await delete(row.arcPart, row.number);
+      }
+    }
   }
 
   /// The downloadable sources for [numbers] of an arc that are not already
@@ -103,12 +155,18 @@ class DownloadService {
   }
 
   Future<void> enqueueSource(int arcPart, int number, Source source) async {
+    // Desktop download-folder setting (spec §4.5): absolute path via the
+    // root base; empty keeps the app-private default. Applies to newly
+    // queued tasks only.
+    final customDir = _current.downloadDir;
     final task = DownloadTask(
       taskId: taskIdFor(arcPart, number),
       url: pixeldrainFileUrl(source.pixeldrainId!),
       filename: source.fileName ?? 'onepace-$arcPart-$number.mkv',
-      baseDirectory: BaseDirectory.applicationSupport,
-      directory: 'episodes',
+      baseDirectory: customDir.isEmpty
+          ? BaseDirectory.applicationSupport
+          : BaseDirectory.root,
+      directory: customDir.isEmpty ? 'episodes' : customDir,
       updates: Updates.statusAndProgress,
       allowPause: true,
       retries: retries,
@@ -300,23 +358,22 @@ class DownloadService {
   static int _now() => DateTime.now().millisecondsSinceEpoch;
 }
 
-// Manual providers — codegen stays out of new files while build_runner is
-// broken on this machine (build-hooks incompatibility).
+// Manual providers — see the note in supabase_backend.dart.
 
 final downloadServiceProvider = Provider<DownloadService>((ref) {
-  final service = DownloadService(ref.watch(appDatabaseProvider));
+  final service = DownloadService(
+      ref.watch(appDatabaseProvider), ref.watch(settingsServiceProvider));
   ref.onDispose(service.dispose);
   return service;
 });
 
 /// One-shot startup init, watched from the home screen the same way as the
-/// launch catalog refresh. Wi-Fi-only defaults ON where cellular exists
-/// (spec §7.4); the settings screen will make it a real toggle later.
+/// launch catalog refresh.
 final downloadsInitProvider = FutureProvider<void>((ref) async {
   final capabilities = ref.watch(platformCapabilitiesProvider);
   await ref
       .watch(downloadServiceProvider)
-      .init(wifiOnly: capabilities.hasCellularToggle);
+      .init(wifiPreferenceApplies: capabilities.hasCellularToggle);
 });
 
 /// Live progress per (arcPart, number), for queue rows' progress bars.

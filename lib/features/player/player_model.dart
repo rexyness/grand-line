@@ -1,5 +1,6 @@
 import '../../data/catalog/pixeldrain.dart';
 import '../../data/db/database.dart';
+import '../../data/playback/playback_controller.dart';
 
 export '../../data/catalog/pixeldrain.dart' show pixeldrainFileUrl;
 
@@ -75,6 +76,25 @@ PlaySource choosePlaySource({
     availableQualities: qualities,
     availableVariants: variants,
   );
+}
+
+/// Picks the embedded MKV track matching the preferred language setting
+/// (spec §4.5), by ISO code first, then by track title. Null when nothing
+/// matches — the engine's default stands.
+PlaybackTrack? pickTrackForLanguage(List<PlaybackTrack> tracks, String lang) {
+  final needles = switch (lang) {
+    'eng' => const ['en', 'eng', 'english'],
+    'jpn' => const ['ja', 'jpn', 'japanese'],
+    _ => [lang.toLowerCase()],
+  };
+  for (final t in tracks) {
+    if (needles.contains(t.language?.toLowerCase())) return t;
+  }
+  for (final t in tracks) {
+    final title = t.title?.toLowerCase() ?? '';
+    if (needles.any(title.contains)) return t;
+  }
+  return null;
 }
 
 /// An episode is watched once playback crosses 90% (spec §4.2's threshold).
