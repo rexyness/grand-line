@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.38.9
+          cache: true
+      - name: Install Linux desktop build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev
+      - run: flutter pub get
+      - name: Verify codegen is committed and current
+        run: |
+          dart run build_runner build --delete-conflicting-outputs
+          git diff --exit-code
+      - run: flutter analyze
+      - run: flutter test
+      - name: Linux smoke build
+        run: flutter build linux --release
