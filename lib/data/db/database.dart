@@ -302,6 +302,32 @@ class DownloadsDao extends DatabaseAccessor<AppDatabase> with _$DownloadsDaoMixi
     );
   }
 
+  /// Partial status update — unlike [upsert] it leaves the columns it isn't
+  /// given untouched (so a status flip never nulls sourceId/taskId/filePath).
+  Future<void> setStatus({
+    required int arcPart,
+    required int number,
+    required String status,
+    String? filePath,
+    int? sizeBytes,
+    required int updatedAtMs,
+  }) {
+    return (update(downloadEntries)
+          ..where((d) => d.arcPart.equals(arcPart) & d.number.equals(number)))
+        .write(DownloadEntriesCompanion(
+      status: Value(status),
+      filePath: filePath == null ? const Value.absent() : Value(filePath),
+      sizeBytes: sizeBytes == null ? const Value.absent() : Value(sizeBytes),
+      updatedAtMs: Value(updatedAtMs),
+    ));
+  }
+
+  Future<DownloadEntry?> get(int arcPart, int number) => (select(downloadEntries)
+        ..where((d) => d.arcPart.equals(arcPart) & d.number.equals(number)))
+      .getSingleOrNull();
+
+  Future<List<DownloadEntry>> all() => select(downloadEntries).get();
+
   Future<void> remove(int arcPart, int number) => (delete(downloadEntries)
         ..where((d) => d.arcPart.equals(arcPart) & d.number.equals(number)))
       .go();

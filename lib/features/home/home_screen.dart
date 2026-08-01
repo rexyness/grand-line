@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/downloads/download_service.dart';
+import '../downloads/downloads_model.dart';
+import '../downloads/downloads_screen.dart';
 import '../player/player_screen.dart';
 import 'arc_backdrop.dart';
 import 'home_model.dart';
@@ -15,6 +18,8 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(launchRefreshProvider);
+    // Startup reconciliation of the download registry (spec §7.4).
+    ref.watch(downloadsInitProvider);
     final views = ref.watch(arcViewsProvider);
 
     return Scaffold(
@@ -129,8 +134,10 @@ class _TopChrome extends StatelessWidget {
           IconButton(
             color: Colors.white,
             icon: const Icon(Icons.download_outlined),
-            tooltip: 'Downloads (coming soon)',
-            onPressed: null,
+            tooltip: 'Downloads',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const DownloadsScreen(),
+            )),
           ),
           MenuAnchor(
             builder: (context, controller, _) => IconButton(
@@ -162,14 +169,61 @@ void _play(BuildContext context, ArcView arc, EpisodeView episode) {
   ));
 }
 
-class _ArcInfo extends StatelessWidget {
+class _ArcInfo extends ConsumerWidget {
   const _ArcInfo({required this.view, required this.wide});
 
   final ArcView view;
   final bool wide;
 
+  /// Arc-level download (spec §4.1's primary action): plans the not-yet-
+  /// downloaded MKVs, shows the total size upfront (spec §7.2), then queues.
+  Future<void> _downloadArc(BuildContext context, WidgetRef ref) async {
+    final service = ref.read(downloadServiceProvider);
+    final plan = await service.planEpisodes(
+      view.arc.part,
+      [for (final e in view.episodes) e.number],
+    );
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (plan.isEmpty) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Nothing to download — episodes are already '
+            'downloaded, queued, or not yet available.'),
+      ));
+      return;
+    }
+    final totalBytes =
+        plan.values.fold(0, (sum, s) => sum + (s.sizeBytes ?? 0));
+    final sizeText = totalBytes > 0 ? ' (~${formatBytes(totalBytes)})' : '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Download ${view.arc.title}?'),
+        content: Text('${plan.length} episodes$sizeText will be saved '
+            'for offline playback.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Download'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    for (final entry in plan.entries) {
+      await service.enqueueSource(view.arc.part, entry.key, entry.value);
+    }
+    messenger.showSnackBar(
+      SnackBar(content: Text('Queued ${plan.length} episodes.')),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final arc = view.arc;
     final resume = view.resumeTarget;
     return Padding(
@@ -213,8 +267,7 @@ class _ArcInfo extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
-                // Wired in the downloads step.
-                onPressed: null,
+                onPressed: () => _downloadArc(context, ref),
                 icon: const Icon(Icons.download_outlined, color: Colors.white),
                 label: const Text(
                   'Download',

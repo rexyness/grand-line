@@ -1,4 +1,7 @@
+import '../../data/catalog/pixeldrain.dart';
 import '../../data/db/database.dart';
+
+export '../../data/catalog/pixeldrain.dart' show pixeldrainFileUrl;
 
 /// What the player should open for an episode (spec §4.2): a completed
 /// download plays the local MKV (track pills, no quality pill); otherwise
@@ -33,8 +36,6 @@ class StreamPlaySource extends PlaySource {
 class NoPlaySource extends PlaySource {
   const NoPlaySource();
 }
-
-String pixeldrainFileUrl(String id) => 'https://pixeldrain.net/api/file/$id';
 
 /// Picks what to play. [preferredQuality]/[preferredVariant] fall back to
 /// the nearest available (spec default: 1080 En Sub).
