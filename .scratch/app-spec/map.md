@@ -1,0 +1,48 @@
+# Map: grand-line — One Pace watch app spec
+
+Label: wayfinder:map
+
+## Destination
+
+An implementation-ready spec at `.scratch/app-spec/spec.md` for **grand-line**: an open-source Flutter app (Windows, Linux, Android, iOS) for streaming and downloading One Pace episodes, with watch progress + resume synced through a hosted backend, subtitle and quality selection, and new-release notifications. The map is done when every decision the spec depends on is closed and the spec is written.
+
+## Notes
+
+- Domain: cross-platform Flutter media app. Content is One Pace (fan re-edit of One Piece, distributed free via **onepace.net** — onepace.co, named in the original idea, is an unofficial SEO clone; see the content-sources research).
+- Tracker: local markdown, this folder. Tickets live in `issues/NN-<slug>.md` with `Type:`, `Status:`, and `Blocked by:` lines (see repo tracker conventions). A ticket is unblocked when every ticket it lists is `resolved`; open + unblocked + not `claimed` = frontier.
+- Skills: `/grilling` + `/domain-modeling` for grilling tickets, `/prototype` for the UI ticket, `/research` background subagents for research tickets. The `custom-plugin-flutter:*` agents are available for Flutter deep dives.
+- Research findings land in `docs/research/<slug>.md`.
+- Standing preferences (settled during charting):
+  - Playback: streaming AND offline downloads.
+  - Features: watch progress + resume, subtitle selection, quality selection, new-release notifications.
+  - Distribution: open-source on GitHub with Releases (APK + Windows/Linux binaries); no app stores.
+  - Watch progress syncs via a hosted backend — which one is [Choose the sync backend and account model](issues/09-sync-backend-decision.md).
+  - Name: **grand-line** (Dart package `grand_line`), living at `D:\dev\grand-line`.
+- Wayfinder default holds: plan, don't build. Execution starts after the spec exists.
+
+## Decisions so far
+
+<!-- one line per closed ticket: [ticket title](issues/NN-slug.md) — gist of the answer -->
+
+- [Research: offline download management in Flutter across four platforms](issues/03-research-download-manager.md) — use `background_downloader` on all four platforms (native background downloads, pause/resume, persistent queue); dio for API calls only; torrents (`dtorrent_task_v2`) desktop-only contingency.
+- [Research: CI and release pipeline for a 4-platform open-source Flutter app](issues/05-research-ci-pipeline.md) — one tag-triggered GitHub Actions matrix (free for public repos, even macOS) releasing Windows zip, Linux tar.gz (+AppImage later), signed APKs, and an unsigned iOS IPA users sideload via AltStore/Sideloadly with a 7-day free-Apple-ID re-sign cadence.
+- [Research: hosted backend options for auth + watch-progress sync](issues/04-research-sync-backend.md) — Supabase: only zero-ops option with real Windows+Linux SDK support (pure Dart), anon key safe in public repo with RLS, free tier survives on API traffic; offline sync is DIY via local-DB queue + `GREATEST()` max-merge RPC. Firebase lacks Linux, Appwrite free tier pauses/deletes idle projects, PocketBase is self-host + pre-1.0.
+- [Research: Flutter video playback stack for Windows/Linux/Android/iOS](issues/02-research-playback-stack.md) — media_kit (libmpv, `libass: true`) recommended: only open-source stack with MKV + styled ASS + track APIs on all four targets; spike Android ASS rendering first, with video_player+fvp (closed-source libmdk core) as fallback.
+- [Research: how One Pace distributes episodes and metadata](issues/01-research-content-sources.md) — no official API (old GraphQL removed 2026); source catalog from the full-history releases RSS + community CRC32-keyed JSON (ladyisatis/one-pace-metadata), stream hardsubbed MP4s (480/720/1080p) straight off Pixeldrain's range-request/CORS-open file API, with canonical multi-sub HEVC MKVs via torrent/Pixeldrain as the download option.
+- [Prototype: core UI — arc/episode browser and player screen](issues/06-prototype-core-ui.md) — Variant E "Immersive carousel" wins: full-bleed arc backdrop home with bottom arc strip + episode chips, Resume/Download as primary actions, full-screen player with track/quality pill menus; 5-variant prototype captured on branch `prototype/core-ui`.
+
+## Not yet specified
+
+- Notification design detail (in-app list vs OS notifications, polling cadence, desktop behavior) — sharpens after [Research: detecting and notifying new One Pace releases](issues/11-research-release-notifications.md).
+- Secondary surfaces in the chosen immersive-carousel idiom: search, downloads-manager view, settings, account/sync UI — design during spec assembly (or a small follow-up prototype if reactions are needed).
+- Sync conflict resolution and offline-first semantics — sharpens once the backend is chosen.
+- Subtitle rendering constraints: One Pace ships soft subs (ASS) inside MKV; whether the chosen player renders them natively decides a lot — sharpens after playback research.
+- Legal/branding posture: disclaimer wording, One Pace attribution, and a courtesy contact with the One Pace team before the repo goes public.
+- iOS install story for an open-source, non-store app (sideloading, AltStore, self-signing cadence) — sharpens after CI research.
+
+## Out of scope
+
+- App store publishing (Play Store / App Store) — declined during charting; fan-content apps face rejection/takedown there.
+- macOS and web targets — the requested platforms are Windows, Linux, Android, iOS.
+- Building the app itself — the destination is the spec; implementation is a follow-on effort.
+- Features beyond One Pace content (general-purpose anime player ambitions).
