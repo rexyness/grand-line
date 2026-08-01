@@ -52,6 +52,8 @@ void main() {
       'package:url_launcher': ['lib/data/platform/'],
       'package:file_selector': ['lib/data/platform/'],
       'package:package_info_plus': ['lib/data/platform/'],
+      'package:flutter_local_notifications': ['lib/data/notifications/'],
+      'package:workmanager': ['lib/data/notifications/'],
     };
     final violations = <String>[];
     for (final entry in importsByFile.entries) {

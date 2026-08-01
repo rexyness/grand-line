@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/notifications/notification_scheduler.dart';
 import '../../data/platform/external_services.dart';
 import '../../data/platform/platform_capabilities.dart';
 import '../../data/settings/settings_service.dart';
@@ -107,7 +108,19 @@ class SettingsScreen extends ConsumerWidget {
                     'new episodes.',
             }),
             value: settings.notifyNewEpisodes,
-            onChanged: service.setNotifyNewEpisodes,
+            onChanged: (value) async {
+              // The scheduler owns the permission request (in context, per
+              // spec §9.4) and the background-poll registration.
+              final granted = await ref
+                  .read(notificationSchedulerProvider)
+                  .setEnabled(value);
+              if (!granted && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Notification permission was denied — '
+                      'the in-app bell still shows new releases.'),
+                ));
+              }
+            },
           ),
           const Divider(),
           const _SectionHeader('Account'),

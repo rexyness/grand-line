@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Runtime-requested on Android 13+ when the user enables the
+         new-episode toggle (spec §9.4). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="grand_line"
         android:name="${applicationName}"

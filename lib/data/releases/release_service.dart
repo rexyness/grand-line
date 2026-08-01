@@ -4,7 +4,10 @@ import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/database.dart';
+import '../notifications/notification_scheduler.dart';
+import '../notifications/notify_state.dart';
 import '../platform/platform_capabilities.dart';
+import '../settings/settings_service.dart';
 import '../sync/supabase_backend.dart';
 import 'releases_backend.dart';
 
@@ -20,6 +23,7 @@ class ReleaseService {
     this._backend, {
     this.checkThrottle = const Duration(minutes: 15),
     this.runningPollInterval = const Duration(hours: 8),
+    this.onFresh,
   });
 
   static const _lastCheckKey = 'releases.lastCheckMs';
@@ -32,6 +36,11 @@ class ReleaseService {
   /// Spec §9.2's 6–12 h "while running" re-check cadence (desktop only).
   final Duration runningPollInterval;
 
+  /// Fired when a *non-launch* check finds new rows — the launch check's
+  /// news is already on screen as the bell badge. The desktop toast tier
+  /// hangs off this (spec §9.4).
+  final Future<void> Function(int freshCount)? onFresh;
+
   Timer? _pollTimer;
   AppLifecycleListener? _lifecycle;
 
@@ -42,11 +51,13 @@ class ReleaseService {
   /// swallow errors — the app keeps serving the cached feed.
   void start({required bool desktopTimer}) {
     if (_backend == null) return;
-    void tryCheck() => unawaited(check().catchError((Object _) => 0));
-    tryCheck();
-    _lifecycle = AppLifecycleListener(onResume: tryCheck);
+    void tryCheck({required bool notify}) =>
+        unawaited(check(notifyIfFresh: notify).catchError((Object _) => 0));
+    tryCheck(notify: false); // launch news lands as the badge, not a toast
+    _lifecycle = AppLifecycleListener(onResume: () => tryCheck(notify: true));
     if (desktopTimer) {
-      _pollTimer = Timer.periodic(runningPollInterval, (_) => tryCheck());
+      _pollTimer = Timer.periodic(
+          runningPollInterval, (_) => tryCheck(notify: true));
     }
   }
 
@@ -60,7 +71,7 @@ class ReleaseService {
   /// on the very first check, which baselines the whole backlog as seen so
   /// a fresh install doesn't badge years of history. Returns the number of
   /// new unseen rows (0 on a quiet, throttled, or local-only check).
-  Future<int> check({bool force = false}) async {
+  Future<int> check({bool force = false, bool notifyIfFresh = false}) async {
     final backend = _backend;
     if (backend == null) return 0;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
@@ -95,7 +106,25 @@ class ReleaseService {
       await _db.catalogDao.setSyncValue(_baselineKey, '1');
       await _db.catalogDao.setSyncValue(_lastCheckKey, nowMs.toString());
     });
+
+    // Whatever the app has ingested is on the bell badge now — the
+    // background poll must never re-notify it (spec §9.4).
+    await advanceNotifyWatermark(
+        _newestPubDate(rows)?.toUtc());
+
+    if (fresh > 0 && notifyIfFresh && onFresh != null) {
+      await onFresh!(fresh);
+    }
     return fresh;
+  }
+
+  DateTime? _newestPubDate(List<RemoteRelease> rows) {
+    DateTime? newest;
+    for (final r in rows) {
+      final d = r.pubDate;
+      if (d != null && (newest == null || d.isAfter(newest))) newest = d;
+    }
+    return newest;
   }
 
   /// Opening the release list clears every badge (spec §9.3).
@@ -118,14 +147,30 @@ class ReleaseService {
 
 final releaseServiceProvider = Provider<ReleaseService>((ref) {
   final service = ReleaseService(
-      ref.watch(appDatabaseProvider), ref.watch(releasesBackendProvider));
+    ref.watch(appDatabaseProvider),
+    ref.watch(releasesBackendProvider),
+    // Desktop toast tier (spec §9.4): a running app's periodic/resume check
+    // that finds news raises an OS toast — if the toggle is on. Settings are
+    // read at fire time so a toggle flip needs no re-wiring.
+    onFresh: (count) async {
+      if (ref.read(platformCapabilitiesProvider).notificationStyle !=
+          NotificationStyle.desktopToast) {
+        return;
+      }
+      final settings = await ref.read(settingsServiceProvider).load();
+      if (!settings.notifyNewEpisodes) return;
+      await ref.read(notificationServiceProvider).showNewReleases(count);
+    },
+  );
   ref.onDispose(service.dispose);
   return service;
 });
 
 /// One-shot startup hookup, watched from the home screen like the other
-/// init providers.
-final releasesInitProvider = Provider<void>((ref) {
+/// init providers. Also syncs the background-poll registration with the
+/// stored toggle.
+final releasesInitProvider = FutureProvider<void>((ref) async {
   final desktop = ref.watch(platformCapabilitiesProvider).hasWindowManagement;
   ref.watch(releaseServiceProvider).start(desktopTimer: desktop);
+  await ref.watch(notificationSchedulerProvider).ensureStarted();
 });
