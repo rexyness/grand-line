@@ -28,3 +28,4 @@ jobs:
       - run: flutter test
       - name: Linux smoke build
         run: flutter build linux --release
+# force re-parse
