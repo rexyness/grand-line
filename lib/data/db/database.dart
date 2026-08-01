@@ -94,8 +94,17 @@ class DownloadEntries extends Table {
   Set<Column> get primaryKey => {arcPart, number};
 }
 
+/// Small key-value store for sync cursors/watermarks.
+class SyncState extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
 @DriftDatabase(
-  tables: [Arcs, Episodes, Sources, ProgressEntries, DownloadEntries],
+  tables: [Arcs, Episodes, Sources, ProgressEntries, DownloadEntries, SyncState],
   daos: [CatalogDao, ProgressDao, DownloadsDao],
 )
 class AppDatabase extends _$AppDatabase {
@@ -108,15 +117,26 @@ class AppDatabase extends _$AppDatabase {
   int get schemaVersion => 1;
 }
 
-@DriftAccessor(tables: [Arcs, Episodes, Sources])
+@DriftAccessor(tables: [Arcs, Episodes, Sources, SyncState])
 class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
   CatalogDao(super.db);
+
+  Future<String?> getSyncValue(String key) async {
+    final row = await (select(syncState)..where((s) => s.key.equals(key)))
+        .getSingleOrNull();
+    return row?.value;
+  }
+
+  Future<void> setSyncValue(String key, String value) =>
+      into(syncState).insertOnConflictUpdate(
+          SyncStateCompanion.insert(key: key, value: value));
 
   Future<int> countArcs() async {
     final row = await (selectOnly(arcs)..addColumns([arcs.part.count()])).getSingle();
     return row.read(arcs.part.count()) ?? 0;
   }
 
+  /// A null [backdropUrl] means "unknown" and keeps any stored value.
   Future<void> upsertArc({
     required int part,
     required String saga,
@@ -124,6 +144,7 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
     required String shortcode,
     String description = '',
     String mkvcode = '',
+    String? backdropUrl,
   }) {
     return into(arcs).insertOnConflictUpdate(
       ArcsCompanion.insert(
@@ -133,6 +154,7 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
         shortcode: shortcode,
         description: Value(description),
         mkvcode: Value(mkvcode),
+        backdropUrl: Value.absentIfNull(backdropUrl),
       ),
     );
   }
