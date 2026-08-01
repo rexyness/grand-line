@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../player/player_screen.dart';
 import 'arc_backdrop.dart';
 import 'home_model.dart';
 import 'home_providers.dart';
@@ -152,6 +153,15 @@ class _TopChrome extends StatelessWidget {
   }
 }
 
+void _play(BuildContext context, ArcView arc, EpisodeView episode) {
+  final index = arc.episodes.indexWhere((e) => e.number == episode.number);
+  if (index < 0) return;
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) =>
+        PlayerScreen(arc: arc, episodes: arc.episodes, index: index),
+  ));
+}
+
 class _ArcInfo extends StatelessWidget {
   const _ArcInfo({required this.view, required this.wide});
 
@@ -196,7 +206,8 @@ class _ArcInfo extends StatelessWidget {
           Row(
             children: [
               FilledButton.icon(
-                onPressed: resume == null ? null : () => _play(context, resume),
+                onPressed:
+                    resume == null ? null : () => _play(context, view, resume),
                 icon: const Icon(Icons.play_arrow),
                 label: Text(view.started ? 'Resume' : 'Start'),
               ),
@@ -244,7 +255,7 @@ class _EpisodeChips extends StatelessWidget {
                 backgroundColor: ep.inProgress
                     ? Theme.of(context).colorScheme.primaryContainer
                     : null,
-                onPressed: () => _play(context, ep),
+                onPressed: () => _play(context, view, ep),
               ),
             ),
         ],
@@ -327,13 +338,3 @@ class _ArcStrip extends StatelessWidget {
   }
 }
 
-/// The player arrives in the next implementation step; until then episode
-/// taps are visible no-ops.
-void _play(BuildContext context, EpisodeView episode) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text('Player coming soon — E${episode.number}'),
-      duration: const Duration(seconds: 1),
-    ),
-  );
-}

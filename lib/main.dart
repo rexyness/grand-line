@@ -4,9 +4,11 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
 import 'data/platform/platform_capabilities.dart';
+import 'data/playback/media_kit_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  initializePlaybackEngine();
 
   final capabilities = PlatformCapabilities.detect();
   if (capabilities.hasWindowManagement) {
