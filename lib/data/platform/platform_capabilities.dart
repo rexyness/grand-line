@@ -27,6 +27,8 @@ class PlatformCapabilities {
     required this.canChooseDownloadDir,
     required this.hasCellularToggle,
     required this.hasWindowManagement,
+    required this.hasWindowFullscreen,
+    required this.playerLocksLandscape,
     required this.notificationStyle,
   });
 
@@ -38,6 +40,8 @@ class PlatformCapabilities {
       canChooseDownloadDir: isDesktop,
       hasCellularToggle: Platform.isAndroid || Platform.isIOS,
       hasWindowManagement: isDesktop,
+      hasWindowFullscreen: isDesktop,
+      playerLocksLandscape: Platform.isAndroid || Platform.isIOS,
       notificationStyle: Platform.isAndroid
           ? NotificationStyle.androidLocal
           : Platform.isIOS
@@ -54,6 +58,14 @@ class PlatformCapabilities {
 
   /// Desktop window sizing/title via window_manager.
   final bool hasWindowManagement;
+
+  /// Desktop toggles true window fullscreen in the player (F / button /
+  /// double-click, issue #18).
+  final bool hasWindowFullscreen;
+
+  /// Mobile locks landscape + hides system bars while the player is open —
+  /// the player *is* the fullscreen there, so no toggle is shown.
+  final bool playerLocksLandscape;
 
   final NotificationStyle notificationStyle;
 }

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/db/database.dart';
 import '../../data/platform/brightness_control.dart';
+import '../../data/platform/fullscreen_control.dart';
 import '../../data/platform/platform_capabilities.dart';
 import '../../data/playback/media_kit_controller.dart';
 import '../../data/playback/playback_controller.dart';
@@ -40,8 +41,11 @@ class PlayerScreen extends ConsumerStatefulWidget {
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // Captured in initState: ref is unsafe to use once disposal has begun, and
-  // dispose() needs the database for the final progress checkpoint.
+  // dispose() needs the database for the final progress checkpoint plus the
+  // fullscreen release.
   late final AppDatabase _db;
+  late final PlatformCapabilities _caps;
+  late final FullscreenControl _fullscreenControl;
   PlaybackController? _controller;
   StreamSubscription<PlaybackSnapshot>? _subscription;
   PlaybackSnapshot _snapshot = const PlaybackSnapshot();
@@ -73,6 +77,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   double _dragStartDy = 0;
   double _dragStartValue = 0;
   double _brightness = 1.0;
+  bool _fullscreen = false; // desktop window fullscreen (issue #18)
 
   EpisodeView get _episode => widget.episodes[widget.index];
   bool get _hasNext => widget.index + 1 < widget.episodes.length;
@@ -81,6 +86,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void initState() {
     super.initState();
     _db = ref.read(appDatabaseProvider);
+    _caps = ref.read(platformCapabilitiesProvider);
+    _fullscreenControl = ref.read(fullscreenControlProvider);
+    unawaited(_fullscreenControl.acquirePlayer(
+        lockLandscape: _caps.playerLocksLandscape));
+    // Autoplay-next replaces the route, so a fresh instance inherits whatever
+    // fullscreen state the previous episode was in.
+    if (_caps.hasWindowFullscreen) {
+      unawaited(_fullscreenControl.isWindowFullscreen().then((fullscreen) {
+        if (mounted && fullscreen != _fullscreen) {
+          setState(() => _fullscreen = fullscreen);
+        }
+      }));
+    }
     // Opening an episode clears its release badges (spec §9.3).
     unawaited(ref
         .read(releaseServiceProvider)
@@ -265,6 +283,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  /// Desktop-only (issue #18): F / controls button / double-click. Mobile has
+  /// no toggle — the player is already landscape immersive there.
+  void _toggleFullscreen() {
+    if (!_caps.hasWindowFullscreen) return;
+    final target = !_fullscreen;
+    setState(() => _fullscreen = target);
+    unawaited(_fullscreenControl.setWindowFullscreen(target));
+    _showControls();
+  }
+
   void _toggleMute() {
     setState(() => _muted = !_muted);
     unawaited(_controller?.setVolume(_muted ? 0 : _volume));
@@ -406,6 +434,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ));
     }
     unawaited(_teardownController());
+    // Last player out restores orientation/bars and drops window fullscreen;
+    // the ref-count keeps autoplay-next's route handoff fullscreen.
+    unawaited(_fullscreenControl.releasePlayer(
+      lockLandscape: _caps.playerLocksLandscape,
+      windowFullscreen: _caps.hasWindowFullscreen,
+    ));
     super.dispose();
   }
 
@@ -422,10 +456,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         onTap: () => _controlsVisible
             ? setState(() => _controlsVisible = false)
             : _showControls(),
-        // Mobile-only gesture zones; desktop keeps pointer/keyboard idioms.
+        // Mobile gesture zones; desktop double-click toggles fullscreen.
         onDoubleTapDown:
             desktop ? null : (d) => _onDoubleTapDown(d, size.width),
-        onDoubleTap: desktop ? null : () {},
+        onDoubleTap: desktop ? _toggleFullscreen : () {},
         onLongPressStart: desktop ? null : (_) => _hold2x(true),
         onLongPressEnd: desktop ? null : (_) => _hold2x(false),
         onLongPressCancel: desktop ? null : () => _hold2x(false),
@@ -463,6 +497,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   speed: _speed,
                   volume: _volume,
                   muted: _muted,
+                  fullscreen: _fullscreen,
+                  onFullscreenToggle: _toggleFullscreen,
                   onPlayPause: () => _controller?.playOrPause(),
                   onSeek: (d) => _controller?.seek(d),
                   onSeekBy: _seekBy,
@@ -535,8 +571,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             _showControls();
           },
           const SingleActivator(LogicalKeyboardKey.keyM): _toggleMute,
-          const SingleActivator(LogicalKeyboardKey.escape): () =>
-              Navigator.of(context).pop(),
+          const SingleActivator(LogicalKeyboardKey.keyF): _toggleFullscreen,
+          // Esc layers (issue #18): leave fullscreen first, the player second.
+          const SingleActivator(LogicalKeyboardKey.escape): () => _fullscreen
+              ? _toggleFullscreen()
+              : Navigator.of(context).pop(),
         },
         child: Focus(
           autofocus: true,
@@ -746,6 +785,8 @@ class _Controls extends StatefulWidget {
     required this.speed,
     required this.volume,
     required this.muted,
+    required this.fullscreen,
+    required this.onFullscreenToggle,
     required this.onPlayPause,
     required this.onSeek,
     required this.onSeekBy,
@@ -769,6 +810,8 @@ class _Controls extends StatefulWidget {
   final double speed;
   final double volume;
   final bool muted;
+  final bool fullscreen;
+  final VoidCallback onFullscreenToggle;
   final VoidCallback onPlayPause;
   final ValueChanged<Duration> onSeek;
   final ValueChanged<Duration> onSeekBy;
@@ -808,7 +851,10 @@ class _ControlsState extends State<_Controls> {
         (duration > Duration.zero
             ? position.inMilliseconds.clamp(0, duration.inMilliseconds).toDouble()
             : 0.0);
-    return Column(
+    // The video underneath stays edge-to-edge; only the controls avoid
+    // notches/cutouts in immersive landscape (issue #18).
+    return SafeArea(
+      child: Column(
       children: [
         // Top bar
         Container(
@@ -959,12 +1005,21 @@ class _ControlsState extends State<_Controls> {
                   ],
                   const Spacer(),
                   ..._pills(context),
+                  if (widget.desktop)
+                    IconButton(
+                      color: Colors.white,
+                      icon: Icon(widget.fullscreen
+                          ? Icons.fullscreen_exit
+                          : Icons.fullscreen),
+                      onPressed: widget.onFullscreenToggle,
+                    ),
                 ],
               ),
             ],
           ),
         ),
       ],
+      ),
     );
   }
 
