@@ -1,5 +1,9 @@
 # Map: grand-line — One Pace watch app spec
 
+> **Migrated 2026-08-02 to GitHub Issues** — this folder is now an archive. The map is
+> [#17](https://github.com/rexyness/grand-line/issues/17); tickets `01`–`16` became issues
+> `#1`–`#16` (same numbers). The live tracker is GitHub (see `docs/agents/issue-tracker.md`).
+
 Label: wayfinder:map
 
 ## Destination
