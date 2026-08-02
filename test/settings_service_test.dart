@@ -25,6 +25,23 @@ void main() {
     expect(s.autoDeleteWatched, isFalse);
     expect(s.downloadDir, isEmpty);
     expect(s.notifyNewEpisodes, isFalse);
+    expect(s.playbackSpeed, 1.0);
+    expect(s.playerVolume, 100);
+    expect(s.playerMuted, isFalse);
+    expect(s.autoplayNext, isTrue, reason: 'binge default (player Q5)');
+  });
+
+  test('player settings round-trip', () async {
+    await service.setPlaybackSpeed(1.25);
+    await service.setPlayerVolume(40);
+    await service.setPlayerMuted(true);
+    await service.setAutoplayNext(false);
+
+    final s = await service.load();
+    expect(s.playbackSpeed, 1.25);
+    expect(s.playerVolume, 40);
+    expect(s.playerMuted, isTrue);
+    expect(s.autoplayNext, isFalse);
   });
 
   test('writes round-trip and stream updates fire', () async {

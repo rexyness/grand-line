@@ -56,6 +56,13 @@ class SettingsScreen extends ConsumerWidget {
             options: const {'jpn': 'Japanese', 'eng': 'English'},
             onChanged: service.setAudioLang,
           ),
+          SwitchListTile(
+            title: const Text('Autoplay next episode'),
+            subtitle: const Text(
+                'Start the next episode after a 5-second countdown'),
+            value: settings.autoplayNext,
+            onChanged: service.setAutoplayNext,
+          ),
           const Divider(),
           const _SectionHeader('Downloads'),
           if (capabilities.canChooseDownloadDir)

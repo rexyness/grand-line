@@ -19,6 +19,7 @@ class PlaybackSnapshot {
   const PlaybackSnapshot({
     this.playing = false,
     this.buffering = true,
+    this.completed = false,
     this.position = Duration.zero,
     this.duration = Duration.zero,
     this.subtitleTracks = const [],
@@ -30,6 +31,10 @@ class PlaybackSnapshot {
 
   final bool playing;
   final bool buffering;
+
+  /// True once the media has played to its natural end (drives autoplay-next).
+  final bool completed;
+
   final Duration position;
   final Duration duration;
   final List<PlaybackTrack> subtitleTracks;
@@ -52,6 +57,13 @@ abstract interface class PlaybackController {
 
   Future<void> playOrPause();
   Future<void> seek(Duration position);
+
+  /// Playback rate multiplier (1.0 = normal speed).
+  Future<void> setRate(double rate);
+
+  /// Player-level volume, 0–100. The app uses this on every platform rather
+  /// than the OS media volume — one code path, no extra plugin.
+  Future<void> setVolume(double volume);
 
   /// Pass null to disable subtitles.
   Future<void> setSubtitleTrack(String? id);

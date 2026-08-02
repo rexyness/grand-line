@@ -20,6 +20,10 @@ class AppSettings {
     this.autoDeleteWatched = false,
     this.downloadDir = '',
     this.notifyNewEpisodes = false,
+    this.playbackSpeed = 1.0,
+    this.playerVolume = 100,
+    this.playerMuted = false,
+    this.autoplayNext = true,
   });
 
   factory AppSettings.fromMap(Map<String, String> map) {
@@ -36,6 +40,14 @@ class AppSettings {
       autoDeleteWatched: map[SettingsService.autoDeleteWatchedKey] == '1',
       downloadDir: map[SettingsService.downloadDirKey] ?? '',
       notifyNewEpisodes: map[SettingsService.notifyNewEpisodesKey] == '1',
+      playbackSpeed:
+          double.tryParse(map[SettingsService.playbackSpeedKey] ?? '') ??
+              defaults.playbackSpeed,
+      playerVolume:
+          double.tryParse(map[SettingsService.playerVolumeKey] ?? '') ??
+              defaults.playerVolume,
+      playerMuted: map[SettingsService.playerMutedKey] == '1',
+      autoplayNext: map[SettingsService.autoplayNextKey] != '0',
     );
   }
 
@@ -63,6 +75,18 @@ class AppSettings {
   /// The one OS-notification toggle (spec §9.4), default OFF.
   final bool notifyNewEpisodes;
 
+  /// Sticky playback rate (player decision Q2): chosen once, applies to every
+  /// episode until changed. Hold-for-2× never persists.
+  final double playbackSpeed;
+
+  /// Player-level volume 0–100 (player decision Q4), all platforms.
+  final double playerVolume;
+
+  final bool playerMuted;
+
+  /// Autoplay-next countdown (player decision Q5), default ON.
+  final bool autoplayNext;
+
   /// The player's initial quality: 'auto' picks the best available, which
   /// choosePlaySource expresses as preferring 1080.
   int get preferredQuality => switch (streamQuality) {
@@ -85,6 +109,10 @@ class SettingsService {
   static const autoDeleteWatchedKey = '${_prefix}autoDeleteWatched';
   static const downloadDirKey = '${_prefix}downloadDir';
   static const notifyNewEpisodesKey = '${_prefix}notifyNewEpisodes';
+  static const playbackSpeedKey = '${_prefix}playbackSpeed';
+  static const playerVolumeKey = '${_prefix}playerVolume';
+  static const playerMutedKey = '${_prefix}playerMuted';
+  static const autoplayNextKey = '${_prefix}autoplayNext';
 
   final AppDatabase _db;
 
@@ -109,6 +137,13 @@ class SettingsService {
   Future<void> setDownloadDir(String value) => _set(downloadDirKey, value);
   Future<void> setNotifyNewEpisodes(bool value) =>
       _setBool(notifyNewEpisodesKey, value);
+  Future<void> setPlaybackSpeed(double value) =>
+      _set(playbackSpeedKey, value.toString());
+  Future<void> setPlayerVolume(double value) =>
+      _set(playerVolumeKey, value.toString());
+  Future<void> setPlayerMuted(bool value) => _setBool(playerMutedKey, value);
+  Future<void> setAutoplayNext(bool value) =>
+      _setBool(autoplayNextKey, value);
 
   Future<void> _set(String key, String value) =>
       _db.catalogDao.setSyncValue(key, value);

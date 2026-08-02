@@ -97,6 +97,16 @@ PlaybackTrack? pickTrackForLanguage(List<PlaybackTrack> tracks, String lang) {
   return null;
 }
 
+/// The speed pill's ladder (player decision Q2).
+const kSpeedLadder = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+
+/// '1×', '1.25×' — trailing zeros dropped.
+String formatSpeed(double speed) {
+  var s = speed.toString();
+  if (s.endsWith('.0')) s = s.substring(0, s.length - 2);
+  return '$s×';
+}
+
 /// An episode is watched once playback crosses 90% (spec §4.2's threshold).
 bool crossesWatchedThreshold(Duration position, Duration duration) {
   if (duration <= Duration.zero) return false;

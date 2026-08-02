@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/db/database.dart';
+import '../../data/platform/brightness_control.dart';
 import '../../data/platform/platform_capabilities.dart';
 import '../../data/playback/media_kit_controller.dart';
 import '../../data/playback/playback_controller.dart';
@@ -13,9 +15,13 @@ import '../../data/settings/settings_service.dart';
 import '../home/home_model.dart';
 import 'player_model.dart';
 
-/// Full-screen player (spec §4.2): seek bar, play/pause, next episode, pill
-/// menus for subtitles/audio (local MKV) or quality/variant (stream), desktop
-/// keyboard shortcuts, and progress checkpointing into the local DB.
+/// Full-screen player (spec §4.2 + the 2026-08-02 player-upgrade decisions):
+/// seek bar with scrub timestamp, play/pause, ±10s, next episode, speed pill
+/// (sticky) with hold-for-2×, pill menus for subtitles/audio (local MKV) or
+/// quality/variant (stream), player-level volume (desktop slider + keys +
+/// wheel, mobile swipe), mobile gesture zones (double-tap seek, brightness/
+/// volume swipes), autoplay-next countdown, desktop keyboard shortcuts, and
+/// progress checkpointing into the local DB.
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({
     super.key,
@@ -51,7 +57,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   String _subtitleLang = 'eng';
   String _audioLang = 'jpn';
 
+  // Player-upgrade state.
+  double _speed = 1.0;
+  bool _holding2x = false;
+  double _volume = 100;
+  bool _muted = false;
+  bool _autoplay = true;
+  bool _completedHandled = false;
+  int? _countdown; // non-null while the next-up card counts down
+  Timer? _countdownTimer;
+  bool _nextUnavailable = false;
+  String? _flashText;
+  Timer? _flashTimer;
+  _DragAdjust? _dragAdjust; // live swipe indicator (mobile)
+  double _dragStartDy = 0;
+  double _dragStartValue = 0;
+  double _brightness = 1.0;
+
   EpisodeView get _episode => widget.episodes[widget.index];
+  bool get _hasNext => widget.index + 1 < widget.episodes.length;
 
   @override
   void initState() {
@@ -74,6 +98,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _preferredVariant = settings.streamVariant;
       _subtitleLang = settings.subtitleLang;
       _audioLang = settings.audioLang;
+      _speed = settings.playbackSpeed;
+      _volume = settings.playerVolume;
+      _muted = settings.playerMuted;
+      _autoplay = settings.autoplayNext;
     }
     final sources = await _db.catalogDao
         .sourcesForEpisode(widget.arc.arc.part, _episode.number);
@@ -100,6 +128,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       setState(() => _snapshot = s);
       _applyTrackPreferences(s, controller);
       _maybeMarkWatched(s);
+      if (s.completed && !_completedHandled) {
+        _completedHandled = true;
+        unawaited(_onCompleted());
+      }
     });
 
     final resume = _episode.inProgress
@@ -111,6 +143,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       NoPlaySource() => throw StateError('unreachable'),
     };
     await controller.open(url, resumeAt: resume);
+    // Sticky speed and volume apply to every episode (decisions Q2/Q4).
+    await controller.setRate(_holding2x ? 2.0 : _speed);
+    await controller.setVolume(_muted ? 0 : _volume);
 
     _checkpointTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _checkpoint());
@@ -192,7 +227,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _openNext() {
-    if (widget.index + 1 >= widget.episodes.length) return;
+    if (!_hasNext) return;
     Navigator.of(context).pushReplacement(MaterialPageRoute(
       builder: (_) => PlayerScreen(
         arc: widget.arc,
@@ -202,10 +237,161 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ));
   }
 
+  // ---- Player-upgrade behavior ----
+
+  void _setSpeed(double speed) {
+    setState(() => _speed = speed);
+    if (!_holding2x) unawaited(_controller?.setRate(speed));
+    unawaited(ref.read(settingsServiceProvider).setPlaybackSpeed(speed));
+  }
+
+  void _hold2x(bool held) {
+    if (_holding2x == held) return;
+    setState(() => _holding2x = held);
+    unawaited(_controller?.setRate(held ? 2.0 : _speed));
+  }
+
+  void _setVolume(double volume, {bool persist = true}) {
+    volume = volume.clamp(0, 100).toDouble();
+    setState(() {
+      _volume = volume;
+      if (volume > 0) _muted = false;
+    });
+    unawaited(_controller?.setVolume(_muted ? 0 : volume));
+    if (persist) {
+      final settings = ref.read(settingsServiceProvider);
+      unawaited(settings.setPlayerVolume(volume));
+      unawaited(settings.setPlayerMuted(_muted));
+    }
+  }
+
+  void _toggleMute() {
+    setState(() => _muted = !_muted);
+    unawaited(_controller?.setVolume(_muted ? 0 : _volume));
+    unawaited(ref.read(settingsServiceProvider).setPlayerMuted(_muted));
+    _showControls();
+  }
+
+  void _flash(String text) {
+    _flashTimer?.cancel();
+    setState(() => _flashText = text);
+    _flashTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _flashText = null);
+    });
+  }
+
+  void _seekBy(Duration delta, {bool flash = false}) {
+    final controller = _controller;
+    if (controller == null) return;
+    var target = controller.current.position + delta;
+    if (target < Duration.zero) target = Duration.zero;
+    unawaited(controller.seek(target));
+    if (flash) {
+      _flash(delta.isNegative ? '−10s' : '+10s');
+    } else {
+      _showControls();
+    }
+  }
+
+  /// End of episode (decision Q5): countdown into the next episode when
+  /// autoplay is on and the next episode has a playable source; an honest
+  /// card when it doesn't.
+  Future<void> _onCompleted() async {
+    unawaited(_checkpoint());
+    if (!_autoplay || !_hasNext) return;
+    final next = widget.episodes[widget.index + 1];
+    final sources = await _db.catalogDao
+        .sourcesForEpisode(widget.arc.arc.part, next.number);
+    final downloads = await _db.downloadsDao.watchAll().first;
+    final download = downloads
+        .where((d) =>
+            d.arcPart == widget.arc.arc.part && d.number == next.number)
+        .firstOrNull;
+    final source = choosePlaySource(
+      sources: sources,
+      download: download,
+      preferredQuality: _preferredQuality,
+      preferredVariant: _preferredVariant,
+    );
+    if (!mounted) return;
+    if (source is NoPlaySource) {
+      setState(() => _nextUnavailable = true);
+      return;
+    }
+    setState(() => _countdown = 5);
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      final remaining = (_countdown ?? 1) - 1;
+      if (remaining <= 0) {
+        timer.cancel();
+        _openNext();
+      } else {
+        setState(() => _countdown = remaining);
+      }
+    });
+  }
+
+  void _cancelCountdown() {
+    _countdownTimer?.cancel();
+    setState(() => _countdown = null);
+  }
+
+  // Mobile gesture zones (decision Q3).
+
+  void _onDoubleTapDown(TapDownDetails details, double width) {
+    final dx = details.globalPosition.dx;
+    if (dx < width / 3) {
+      _seekBy(const Duration(seconds: -10), flash: true);
+    } else if (dx > width * 2 / 3) {
+      _seekBy(const Duration(seconds: 10), flash: true);
+    }
+  }
+
+  Future<void> _onVerticalDragStart(
+      DragStartDetails details, double width) async {
+    final side = details.globalPosition.dx < width / 2
+        ? _DragAdjust.brightness
+        : _DragAdjust.volume;
+    _dragStartDy = details.globalPosition.dy;
+    if (side == _DragAdjust.brightness) {
+      _brightness = await ref.read(brightnessControlProvider).current();
+      _dragStartValue = _brightness;
+    } else {
+      _dragStartValue = _muted ? 0 : _volume;
+    }
+    if (mounted) setState(() => _dragAdjust = side);
+  }
+
+  void _onVerticalDragUpdate(DragUpdateDetails details, double height) {
+    final adjust = _dragAdjust;
+    if (adjust == null) return;
+    // A 70%-of-screen swipe spans the whole range.
+    final fraction =
+        (_dragStartDy - details.globalPosition.dy) / (height * 0.7);
+    if (adjust == _DragAdjust.brightness) {
+      _brightness = (_dragStartValue + fraction).clamp(0.0, 1.0);
+      unawaited(ref.read(brightnessControlProvider).set(_brightness));
+      setState(() {});
+    } else {
+      _setVolume(_dragStartValue + fraction * 100, persist: false);
+    }
+  }
+
+  void _onVerticalDragEnd() {
+    if (_dragAdjust == _DragAdjust.volume) {
+      final settings = ref.read(settingsServiceProvider);
+      unawaited(settings.setPlayerVolume(_volume));
+      unawaited(settings.setPlayerMuted(_muted));
+    }
+    setState(() => _dragAdjust = null);
+  }
+
   @override
   void dispose() {
     _hideTimer?.cancel();
     _checkpointTimer?.cancel();
+    _countdownTimer?.cancel();
+    _flashTimer?.cancel();
     final snapshot = _controller?.current;
     final arcPart = widget.arc.arc.part;
     final number = _episode.number;
@@ -227,6 +413,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget build(BuildContext context) {
     final capabilities = ref.watch(platformCapabilitiesProvider);
     final desktop = capabilities.hasWindowManagement;
+    final size = MediaQuery.sizeOf(context);
 
     final body = MouseRegion(
       onHover: desktop ? (_) => _showControls() : null,
@@ -235,6 +422,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         onTap: () => _controlsVisible
             ? setState(() => _controlsVisible = false)
             : _showControls(),
+        // Mobile-only gesture zones; desktop keeps pointer/keyboard idioms.
+        onDoubleTapDown:
+            desktop ? null : (d) => _onDoubleTapDown(d, size.width),
+        onDoubleTap: desktop ? null : () {},
+        onLongPressStart: desktop ? null : (_) => _hold2x(true),
+        onLongPressEnd: desktop ? null : (_) => _hold2x(false),
+        onLongPressCancel: desktop ? null : () => _hold2x(false),
+        onVerticalDragStart:
+            desktop ? null : (d) => _onVerticalDragStart(d, size.width),
+        onVerticalDragUpdate:
+            desktop ? null : (d) => _onVerticalDragUpdate(d, size.height),
+        onVerticalDragEnd: desktop ? null : (_) => _onVerticalDragEnd(),
+        onVerticalDragCancel: desktop ? null : _onVerticalDragEnd,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -258,10 +458,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   episode: _episode,
                   snapshot: _snapshot,
                   source: _source,
-                  hasNext: widget.index + 1 < widget.episodes.length,
+                  hasNext: _hasNext,
+                  desktop: desktop,
+                  speed: _speed,
+                  volume: _volume,
+                  muted: _muted,
                   onPlayPause: () => _controller?.playOrPause(),
                   onSeek: (d) => _controller?.seek(d),
+                  onSeekBy: _seekBy,
                   onNext: _openNext,
+                  onSpeed: _setSpeed,
+                  onVolume: _setVolume,
+                  onMuteToggle: _toggleMute,
                   onSubtitle: (id) => _controller?.setSubtitleTrack(id),
                   onAudio: (id) => _controller?.setAudioTrack(id),
                   onQuality: (q) => _changeStream(quality: q),
@@ -270,6 +478,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
             ),
+            if (_holding2x)
+              const _CenterBadge(text: '2×', icon: Icons.fast_forward)
+            else if (_flashText != null)
+              _CenterBadge(text: _flashText!),
+            if (_dragAdjust case final adjust?)
+              _AdjustIndicator(
+                icon: adjust == _DragAdjust.brightness
+                    ? Icons.brightness_6
+                    : (_muted || _volume == 0
+                        ? Icons.volume_off
+                        : Icons.volume_up),
+                fraction: adjust == _DragAdjust.brightness
+                    ? _brightness
+                    : (_muted ? 0 : _volume / 100),
+              ),
+            if (_countdown case final seconds?)
+              _NextUpCard(
+                episode: widget.episodes[widget.index + 1],
+                seconds: seconds,
+                onPlayNow: () {
+                  _countdownTimer?.cancel();
+                  _openNext();
+                },
+                onCancel: _cancelCountdown,
+              )
+            else if (_nextUnavailable)
+              _NextUpCard.unavailable(
+                onBack: () => Navigator.of(context).pop(),
+              ),
           ],
         ),
       ),
@@ -277,7 +514,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     if (!desktop) return Scaffold(backgroundColor: Colors.black, body: body);
 
-    // Desktop keyboard shortcuts (spec §4.2), behind capability checks.
+    // Desktop keyboard shortcuts (spec §4.2 + decision Q4), behind
+    // capability checks; the scroll wheel adjusts volume too.
     return Scaffold(
       backgroundColor: Colors.black,
       body: CallbackShortcuts(
@@ -288,23 +526,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               const Duration(seconds: -10)),
           const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
               _seekBy(const Duration(seconds: 10)),
+          const SingleActivator(LogicalKeyboardKey.arrowUp): () {
+            _setVolume(_volume + 5);
+            _showControls();
+          },
+          const SingleActivator(LogicalKeyboardKey.arrowDown): () {
+            _setVolume(_volume - 5);
+            _showControls();
+          },
+          const SingleActivator(LogicalKeyboardKey.keyM): _toggleMute,
           const SingleActivator(LogicalKeyboardKey.escape): () =>
               Navigator.of(context).pop(),
         },
-        child: Focus(autofocus: true, child: body),
+        child: Focus(
+          autofocus: true,
+          child: Listener(
+            onPointerSignal: (signal) {
+              if (signal is PointerScrollEvent) {
+                _setVolume(_volume + (signal.scrollDelta.dy < 0 ? 5 : -5));
+                _showControls();
+              }
+            },
+            child: body,
+          ),
+        ),
       ),
     );
   }
-
-  void _seekBy(Duration delta) {
-    final controller = _controller;
-    if (controller == null) return;
-    var target = controller.current.position + delta;
-    if (target < Duration.zero) target = Duration.zero;
-    unawaited(controller.seek(target));
-    _showControls();
-  }
 }
+
+enum _DragAdjust { brightness, volume }
 
 class _Unavailable extends StatelessWidget {
   const _Unavailable({this.message, required this.onRetry});
@@ -331,16 +582,177 @@ class _Unavailable extends StatelessWidget {
   }
 }
 
-class _Controls extends StatelessWidget {
+/// Momentary center feedback: ±10s double-tap flashes, hold-for-2× badge.
+class _CenterBadge extends StatelessWidget {
+  const _CenterBadge({required this.text, this.icon});
+
+  final String text;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: IgnorePointer(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+              ],
+              Text(text,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Slim overlay shown while a brightness/volume swipe is in progress.
+class _AdjustIndicator extends StatelessWidget {
+  const _AdjustIndicator({required this.icon, required this.fraction});
+
+  final IconData icon;
+  final double fraction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: IgnorePointer(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 120,
+                child: LinearProgressIndicator(
+                  value: fraction.clamp(0.0, 1.0),
+                  minHeight: 4,
+                  backgroundColor: Colors.white24,
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 38,
+                child: Text('${(fraction * 100).round()}%',
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(color: Colors.white, fontSize: 13)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// End-of-episode card (decision Q5): countdown into the next episode, or
+/// the honest unavailable variant.
+class _NextUpCard extends StatelessWidget {
+  const _NextUpCard({
+    required this.episode,
+    required this.seconds,
+    required this.onPlayNow,
+    required this.onCancel,
+  })  : unavailable = false,
+        onBack = null;
+
+  const _NextUpCard.unavailable({required this.onBack})
+      : episode = null,
+        seconds = 0,
+        onPlayNow = null,
+        onCancel = null,
+        unavailable = true;
+
+  final EpisodeView? episode;
+  final int seconds;
+  final VoidCallback? onPlayNow;
+  final VoidCallback? onCancel;
+  final VoidCallback? onBack;
+  final bool unavailable;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = unavailable
+        ? 'The next episode isn\'t available right now.'
+        : 'Up next: E${episode!.number}'
+            '${episode!.episode.title != null ? ' — ${episode!.episode.title}' : ''}';
+    return Positioned(
+      right: 24,
+      bottom: 96,
+      child: Container(
+        width: 300,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xE6101418),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(title,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            if (!unavailable)
+              Text('Playing in $seconds…',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 12),
+            Row(
+              children: unavailable
+                  ? [FilledButton(onPressed: onBack, child: const Text('Back'))]
+                  : [
+                      FilledButton(
+                          onPressed: onPlayNow, child: const Text('Play now')),
+                      const SizedBox(width: 8),
+                      TextButton(
+                          onPressed: onCancel, child: const Text('Cancel')),
+                    ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Controls extends StatefulWidget {
   const _Controls({
     required this.arcTitle,
     required this.episode,
     required this.snapshot,
     required this.source,
     required this.hasNext,
+    required this.desktop,
+    required this.speed,
+    required this.volume,
+    required this.muted,
     required this.onPlayPause,
     required this.onSeek,
+    required this.onSeekBy,
     required this.onNext,
+    required this.onSpeed,
+    required this.onVolume,
+    required this.onMuteToggle,
     required this.onSubtitle,
     required this.onAudio,
     required this.onQuality,
@@ -353,14 +765,31 @@ class _Controls extends StatelessWidget {
   final PlaybackSnapshot snapshot;
   final PlaySource source;
   final bool hasNext;
+  final bool desktop;
+  final double speed;
+  final double volume;
+  final bool muted;
   final VoidCallback onPlayPause;
   final ValueChanged<Duration> onSeek;
+  final ValueChanged<Duration> onSeekBy;
   final VoidCallback onNext;
+  final ValueChanged<double> onSpeed;
+  final ValueChanged<double> onVolume;
+  final VoidCallback onMuteToggle;
   final ValueChanged<String?> onSubtitle;
   final ValueChanged<String> onAudio;
   final ValueChanged<int> onQuality;
   final ValueChanged<String> onVariant;
   final VoidCallback onBack;
+
+  @override
+  State<_Controls> createState() => _ControlsState();
+}
+
+class _ControlsState extends State<_Controls> {
+  /// Non-null while the user drags the seek bar; seeking happens on release
+  /// (decision Q6), with a timestamp bubble tracking the thumb.
+  double? _dragMs;
 
   String _fmt(Duration d) {
     final h = d.inHours, m = d.inMinutes % 60, s = d.inSeconds % 60;
@@ -370,8 +799,15 @@ class _Controls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final snapshot = widget.snapshot;
     final duration = snapshot.duration;
     final position = snapshot.position;
+    final maxMs =
+        duration > Duration.zero ? duration.inMilliseconds.toDouble() : 1.0;
+    final sliderMs = _dragMs ??
+        (duration > Duration.zero
+            ? position.inMilliseconds.clamp(0, duration.inMilliseconds).toDouble()
+            : 0.0);
     return Column(
       children: [
         // Top bar
@@ -389,13 +825,13 @@ class _Controls extends StatelessWidget {
               IconButton(
                 color: Colors.white,
                 icon: const Icon(Icons.arrow_back),
-                onPressed: onBack,
+                onPressed: widget.onBack,
               ),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  '$arcTitle · E${episode.number}'
-                  '${episode.episode.title != null ? ' — ${episode.episode.title}' : ''}',
+                  '${widget.arcTitle} · E${widget.episode.number}'
+                  '${widget.episode.episode.title != null ? ' — ${widget.episode.episode.title}' : ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -425,18 +861,52 @@ class _Controls extends StatelessWidget {
                       style: const TextStyle(
                           color: Colors.white70, fontSize: 12)),
                   Expanded(
-                    child: Slider(
-                      value: duration > Duration.zero
-                          ? position.inMilliseconds
-                              .clamp(0, duration.inMilliseconds)
-                              .toDouble()
-                          : 0,
-                      max: duration > Duration.zero
-                          ? duration.inMilliseconds.toDouble()
-                          : 1,
-                      onChanged: duration > Duration.zero
-                          ? (v) => onSeek(Duration(milliseconds: v.round()))
-                          : null,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Scrub timestamp bubble tracks the thumb.
+                        SizedBox(
+                          height: 24,
+                          child: _dragMs == null
+                              ? null
+                              : Align(
+                                  alignment: Alignment(
+                                      (sliderMs / maxMs) * 2 - 1, 0),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          Colors.black.withValues(alpha: 0.75),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      _fmt(Duration(
+                                          milliseconds: sliderMs.round())),
+                                      style: const TextStyle(
+                                          color: Colors.white, fontSize: 12),
+                                    ),
+                                  ),
+                                ),
+                        ),
+                        Slider(
+                          value: sliderMs.clamp(0.0, maxMs),
+                          max: maxMs,
+                          onChangeStart: duration > Duration.zero
+                              ? (v) => setState(() => _dragMs = v)
+                              : null,
+                          onChanged: duration > Duration.zero
+                              ? (v) => setState(() => _dragMs = v)
+                              : null,
+                          onChangeEnd: duration > Duration.zero
+                              ? (v) {
+                                  setState(() => _dragMs = null);
+                                  widget.onSeek(
+                                      Duration(milliseconds: v.round()));
+                                }
+                              : null,
+                        ),
+                      ],
                     ),
                   ),
                   Text(_fmt(duration),
@@ -448,16 +918,45 @@ class _Controls extends StatelessWidget {
                 children: [
                   IconButton(
                     color: Colors.white,
+                    icon: const Icon(Icons.replay_10),
+                    onPressed: () =>
+                        widget.onSeekBy(const Duration(seconds: -10)),
+                  ),
+                  IconButton(
+                    color: Colors.white,
                     iconSize: 32,
                     icon: Icon(
                         snapshot.playing ? Icons.pause : Icons.play_arrow),
-                    onPressed: onPlayPause,
+                    onPressed: widget.onPlayPause,
+                  ),
+                  IconButton(
+                    color: Colors.white,
+                    icon: const Icon(Icons.forward_10),
+                    onPressed: () =>
+                        widget.onSeekBy(const Duration(seconds: 10)),
                   ),
                   IconButton(
                     color: Colors.white,
                     icon: const Icon(Icons.skip_next),
-                    onPressed: hasNext ? onNext : null,
+                    onPressed: widget.hasNext ? widget.onNext : null,
                   ),
+                  if (widget.desktop) ...[
+                    IconButton(
+                      color: Colors.white,
+                      icon: Icon(widget.muted || widget.volume == 0
+                          ? Icons.volume_off
+                          : Icons.volume_up),
+                      onPressed: widget.onMuteToggle,
+                    ),
+                    SizedBox(
+                      width: 110,
+                      child: Slider(
+                        value: widget.muted ? 0 : widget.volume,
+                        max: 100,
+                        onChanged: widget.onVolume,
+                      ),
+                    ),
+                  ],
                   const Spacer(),
                   ..._pills(context),
                 ],
@@ -470,7 +969,15 @@ class _Controls extends StatelessWidget {
   }
 
   List<Widget> _pills(BuildContext context) {
-    switch (source) {
+    final snapshot = widget.snapshot;
+    final speedPill = _PillMenu<double>(
+      label: formatSpeed(widget.speed),
+      values: kSpeedLadder,
+      display: formatSpeed,
+      selected: widget.speed,
+      onSelected: widget.onSpeed,
+    );
+    switch (widget.source) {
       case StreamPlaySource(
           :final quality,
           :final variant,
@@ -478,13 +985,14 @@ class _Controls extends StatelessWidget {
           :final availableVariants
         ):
         return [
+          speedPill,
           if (availableVariants.length > 1)
             _PillMenu<String>(
               label: variant == 'dub' ? 'Dub' : 'Sub',
               values: availableVariants,
               display: (v) => v == 'dub' ? 'Dub' : v == 'ensub' ? 'En Sub' : v,
               selected: variant,
-              onSelected: onVariant,
+              onSelected: widget.onVariant,
             ),
           if (availableQualities.isNotEmpty)
             _PillMenu<int>(
@@ -492,11 +1000,12 @@ class _Controls extends StatelessWidget {
               values: availableQualities,
               display: (q) => '${q}p',
               selected: quality,
-              onSelected: onQuality,
+              onSelected: widget.onQuality,
             ),
         ];
       case LocalPlaySource():
         return [
+          speedPill,
           if (snapshot.subtitleTracks.isNotEmpty)
             // 'off' sentinel: PopupMenuButton drops null selections.
             _PillMenu<String>(
@@ -508,7 +1017,7 @@ class _Controls extends StatelessWidget {
                       .firstWhere((t) => t.id == id)
                       .label,
               selected: snapshot.activeSubtitleId ?? 'off',
-              onSelected: (id) => onSubtitle(id == 'off' ? null : id),
+              onSelected: (id) => widget.onSubtitle(id == 'off' ? null : id),
             ),
           if (snapshot.audioTracks.length > 1)
             _PillMenu<String>(
@@ -517,7 +1026,7 @@ class _Controls extends StatelessWidget {
               display: (id) =>
                   snapshot.audioTracks.firstWhere((t) => t.id == id).label,
               selected: snapshot.activeAudioId,
-              onSelected: onAudio,
+              onSelected: widget.onAudio,
             ),
         ];
       case NoPlaySource():

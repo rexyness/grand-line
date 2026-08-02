@@ -51,6 +51,7 @@ void main() {
       'package:window_manager': ['lib/main.dart', 'lib/data/platform/'],
       'package:url_launcher': ['lib/data/platform/'],
       'package:file_selector': ['lib/data/platform/'],
+      'package:screen_brightness': ['lib/data/platform/'],
       'package:package_info_plus': ['lib/data/platform/'],
       'package:flutter_local_notifications': ['lib/data/notifications/'],
       'package:workmanager': ['lib/data/notifications/'],

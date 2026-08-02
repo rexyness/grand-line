@@ -54,6 +54,7 @@ class MediaKitPlaybackController implements PlaybackController {
       return PlaybackSnapshot(
         playing: state.playing,
         buffering: state.buffering,
+        completed: state.completed,
         position: state.position,
         duration: state.duration,
         subtitleTracks: [
@@ -78,6 +79,7 @@ class MediaKitPlaybackController implements PlaybackController {
     for (final stream in <Stream<void>>[
       _player.stream.playing,
       _player.stream.buffering,
+      _player.stream.completed,
       _player.stream.position,
       _player.stream.duration,
       _player.stream.tracks,
@@ -90,6 +92,7 @@ class MediaKitPlaybackController implements PlaybackController {
       push(PlaybackSnapshot(
         playing: _current.playing,
         buffering: false,
+        completed: _current.completed,
         position: _current.position,
         duration: _current.duration,
         subtitleTracks: _current.subtitleTracks,
@@ -126,6 +129,13 @@ class MediaKitPlaybackController implements PlaybackController {
 
   @override
   Future<void> seek(Duration position) => _player.seek(position);
+
+  @override
+  Future<void> setRate(double rate) => _player.setRate(rate);
+
+  @override
+  Future<void> setVolume(double volume) =>
+      _player.setVolume(volume.clamp(0, 100).toDouble());
 
   @override
   Future<void> setSubtitleTrack(String? id) async {

@@ -144,6 +144,22 @@ audio track, and quality:
 - Position is checkpointed to the local DB during playback and on exit; crossing the watched
   threshold sets `watched` (§8.3).
 
+**Addendum (2026-08-02, post-spec player upgrade — grilled and decided in-session):**
+
+- **Speed**: pill with the `0.5–2×` ladder; sticky forever (local settings). Mobile
+  long-press = temporary 2× while held.
+- **Mobile gesture zones**: double-tap left/right thirds = ∓10s; vertical swipe left half =
+  brightness (app-level, via `screen_brightness` behind `data/platform/`), right half =
+  player volume; single tap stays controls-toggle.
+- **Volume**: player-level (0–100) on every platform via `PlaybackController.setVolume` —
+  deliberately not OS media volume. Desktop: mute button + slider, `M`/`↑`/`↓` keys,
+  scroll wheel. Persisted with mute state.
+- **Autoplay next**: default ON (settings toggle), 5 s countdown card at natural end,
+  seamless across arc boundaries; honest "unavailable" card when the next episode has no
+  playable source. `PlaybackSnapshot.completed` drives it.
+- **Seek UX**: on-screen ±10s buttons; scrub-drag shows a timestamp bubble and seeks on
+  release. No thumbnail previews (needs a sprite-sheet pipeline we don't have).
+
 ### 4.3 Search (designed at assembly)
 
 Overlay (not a page): tap the search icon (or `/` / Ctrl+K on desktop) → dim the home,

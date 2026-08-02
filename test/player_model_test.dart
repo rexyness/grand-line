@@ -69,6 +69,13 @@ void main() {
     expect(result, isA<NoPlaySource>());
   });
 
+  test('speed labels drop trailing zeros', () {
+    expect(formatSpeed(1.0), '1×');
+    expect(formatSpeed(1.25), '1.25×');
+    expect(formatSpeed(2.0), '2×');
+    expect(kSpeedLadder, contains(1.0));
+  });
+
   test('watched threshold at 90%', () {
     const d = Duration(minutes: 20);
     expect(crossesWatchedThreshold(const Duration(minutes: 17), d), false);
